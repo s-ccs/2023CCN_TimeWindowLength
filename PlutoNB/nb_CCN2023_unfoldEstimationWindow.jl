@@ -18,44 +18,59 @@ begin
 	using DataFrames
 end
 
+# ╔═╡ 7ef8b8c8-3e01-4cf0-8799-8aa6593162d3
+using PaddedViews
+
+# ╔═╡ e89c6cb5-65ac-4522-8bef-c98267c6419b
+using DataFramesMeta
+
 # ╔═╡ 7719327d-c451-42ad-9355-a4f2fb0f671d
 set_theme!(theme_ggthemr(:fresh))
 
 # ╔═╡ a81a731a-0ab9-459e-b4c6-78caef61652a
-tWinList = [(-3,3),(-1,1),(-0.1,1),(-0.1,0.5),(-0.1,0.3),(-0.1,0.1)]
+tWinList = [(-3,3),(-0.1,0.4),(-0.1,0.3),(-0.1,0.35),(-0.1,0.25),(-0.1,0.15),(-0.1,0.2),(-0.1,0.1)]
 
 # ╔═╡ ab7bed9d-0814-490e-8885-95a224feec70
 begin
-sfreq = 250
-dat,evts = UnfoldSim.predef_eeg(;
+	function gen_data(rng,noiselevel,sfreq)
+
+dat,evts = UnfoldSim.predef_eeg(rng;
 		n1 = (n170(;sfreq=sfreq), @formula(0~1+condition),[5,0],Dict()),
 		p3 = (p300(;sfreq=sfreq), @formula(0~1+continuous),[5,0],Dict()),
-		n_repeats=100,noiselevel=1.5)
+		n_repeats=20,noiselevel=noiselevel)
+		return dat,evts
+	end
 end
 
+# ╔═╡ 75dcbe94-0a6e-415f-9c04-eb75f1439c2f
+sfreq = 250
+
+# ╔═╡ 2d2536d6-137e-4b77-a530-4571dfc7e779
+
+function calc_time_models(evts,dat,tWinList,sfreq)
+	mList = []
+	for twindow = tWinList  
+		m = fit(UnfoldModel,Dict(Any=>(@formula(0~1),firbasis(twindow,sfreq,string(twindow)))),evts,dat);
+		res = coeftable(m)
+		push!(mList,res)
+	end
+	return vcat(mList...)
+end
+
+
+# ╔═╡ 800ffab4-3541-4627-b04d-a6817a9e4c0d
+dat,evts = gen_data(MersenneTwister(1),8.5,sfreq);
+
+# ╔═╡ b7772ced-53b9-40f3-9835-b06bdcfdf540
+res = calc_time_models(evts,dat,tWinList,sfreq);
+
 # ╔═╡ cbd9a443-59c2-4662-a3c6-f6a9d463bfef
+begin
 dat_gt,evts_gt = UnfoldSim.predef_eeg(;
 		n1 = (n170(;sfreq=sfreq), @formula(0~1),[5],Dict()),
 		p3 = (p300(;sfreq=sfreq), @formula(0~1),[5],Dict()),
-		n_repeats=1,noiselevel=0, return_epoched=true)
-
-# ╔═╡ 1ecd3ae3-b316-4c35-908d-357e6f7baeb0
-lines(dat_gt[:,1])
-
-# ╔═╡ 2d2536d6-137e-4b77-a530-4571dfc7e779
-begin
-mList = []
-for twindow = tWinList  
-m = fit(UnfoldModel,Dict(Any=>(@formula(0~1),firbasis(twindow,sfreq,string(twindow)))),evts,dat);
-push!(mList,m)
-end
-end
-
-# ╔═╡ b7772ced-53b9-40f3-9835-b06bdcfdf540
-res = vcat(coeftable.(mList)...)
-
-# ╔═╡ c36a3723-e8a9-4501-bb5b-3405d884b7f5
-begin
+		n_repeats=1,noiselevel=0, return_epoched=true);
+time_gt = range(0,length = length(dat_gt[:,1]),step=1/sfreq)
 	df_gt = DataFrame(
 		basisname = reduce(vcat,fill.(unique(res.basisname), length(dat_gt[:,1]))),
 		channel = repeat([1], length(dat_gt[:,1])*length(unique(res.basisname))),
@@ -63,15 +78,46 @@ begin
 		estimate = repeat(dat_gt[:,1], length(unique(res.basisname))),
 		group = reduce(vcat,fill(nothing, length(dat_gt[:,1])*length(unique(res.basisname)))),
 		stderror = reduce(vcat,fill(nothing, length(dat_gt[:,1])*length(unique(res.basisname)))),
-		time = repeat(0:(1/sfreq):(length(dat_gt[:,1])/sfreq-0.004), length(unique(res.basisname))),
+		time = repeat(time_gt, length(unique(res.basisname))),
 			)
+	res_gt = vcat(res, df_gt);
 end
 
-# ╔═╡ f9be8d6a-2e64-45e8-b09d-0e26a861dba2
-df_gt
+# ╔═╡ 1ecd3ae3-b316-4c35-908d-357e6f7baeb0
+lines(dat_gt[:,1])
 
-# ╔═╡ 2cb755c1-2bae-412f-9dbc-120648434323
-res_gt = vcat(res, df_gt)
+# ╔═╡ e162bf1b-e646-4efd-a094-945ed6d62a9e
+begin
+	# run simulations 100x
+	rep = 2
+	out = []
+	for r  = 1:rep
+		rng = MersenneTwister(r)
+		dat,evts = gen_data(MersenneTwister(1),8.5,sfreq);
+		res = calc_time_models(evts,dat,tWinList,sfreq);
+		push!(out,@by(res,[:basisname],
+			:mse_estim = compare_window(:time,:estimate;type="estim"),
+			:mse_short = compare_window(:time,:estimate;type="short"),
+			:mse_gt = compare_window(:time,:estimate);type="gt"))
+	end
+end
+
+# ╔═╡ d045d631-4aaf-4a5f-aaf7-15f3ebd878d7
+begin
+	#function compare_window(t,e;type="estim")
+	start_gt = time_gt[1]
+	end_gt = time_gt[end]
+	t = res.time[res.basisname .== "(-3, 3)"]
+	x = sym_paddedviews(0,dat_gt[:,1],(-sum(t.<start_gt):sum(t.>end_gt)))
+	Vector(collect(x))
+#-sum(t.<start_gt)
+end
+
+# ╔═╡ 16d06f01-2416-43eb-b30f-64cff6752737
+collect(sym_paddedviews(0,[1,2,3,4,5,6,7],(-5:5)))
+
+# ╔═╡ 9801cb69-5d7d-4d3d-bf6e-1f3cecea19cd
+df_gtd
 
 # ╔═╡ e5d287a7-e02c-4beb-b4e4-198b58b02e0e
 begin
@@ -83,16 +129,67 @@ xlims!(current_axis(),[-1,1])
 	current_figure()
 end
 
-# ╔═╡ aefef250-4476-4ad2-8d9f-85eace2d9fd3
-begin
-
-	data(res_gt) * mapping(:time,:estimate,layout=:basisname,color=:coefname)*visual(Lines) + data((x=[-1.0, 1.0], y=[0, 0])) * visual(Lines) * mapping(:x, :y) + data((x=[0.0, 0.0], y=[-5, 5.5])) * visual(Lines) * mapping(:x, :y) |> draw
-xlims!(current_axis(),[-1,1])
+# ╔═╡ 0fa83b99-0956-41fc-811d-42f071cd5368
+let
+	f = Figure()
+	res_gt.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res_gt.basisname,"("=>"",")"=>""),',')])
+	
+	h = data(@subset(res_gt,:basisname .!= "(-3, 3)")) * mapping(:time,:estimate,color=:tWin,group=(:tWin,:coefname)=>(x,y)->string(x)*y)*visual(Lines,colormap=:Reds)|> x->draw!(f,x,axis=(;xlabel="time [s]",ylabel="estimate [a.u.]"),facet=(;linkxaxes=false),palettes=(;linecolor=:RdBu))
+	
+	legend!(f[1,2],h)
+	tmp! = x->(hlines!(x.axis,[0],color=:gray),vlines!(x.axis,[0],color=:gray))
+	tmp!.(h)
+	
+	#data((x=[-1.0, 1.0], y=[0, 0])) * visual(Lines) * mapping(:x, :y) + data((x=[0.0, 0.0], y=[-5, 5.5])) * visual(Lines) * mapping(:x, :y) 
+#xlims!(current_axis(),[-1,1])
 	current_figure()
 end
 
+# ╔═╡ def658db-9f13-4b87-b882-733d885c0ef0
+
+
+# ╔═╡ 47081864-d798-4bbd-a822-4e4d80e22d4c
+unique(split.(replace.(res_gt.basisname,"("=>"",")"=>""),','))
+
+# ╔═╡ 3c1f624e-d199-4c6f-9349-b17e32dc02f2
+unique(res.basisname)
+
+# ╔═╡ aefef250-4476-4ad2-8d9f-85eace2d9fd3
+let
+	f = Figure()
+	
+	h = data(res_gt) * mapping(:time,:estimate,layout=:basisname,color=:coefname)*visual(Lines)|> x->draw!(f,x,facet=(;linkxaxes=false))
+
+	tmp! = x->(hlines!(x.axis,[0],color=:gray),vlines!(x.axis,[0],color=:gray))
+	tmp!.(h)
+	#data((x=[-1.0, 1.0], y=[0, 0])) * visual(Lines) * mapping(:x, :y) + data((x=[0.0, 0.0], y=[-5, 5.5])) * visual(Lines) * mapping(:x, :y) 
+#xlims!(current_axis(),[-1,1])
+	current_figure()
+end
+
+# ╔═╡ 7d0e138d-c3b8-4775-b26a-cddae594c48d
+typeof(h)
+
 # ╔═╡ ad47e6a7-b92b-420d-a584-84ca4219b949
-save("/store/users/skukies/TimeWindowComparison.svg", current_figure())
+#save("/store/users/skukies/TimeWindowComparison.svg", current_figure())
+
+# ╔═╡ d8901f82-a018-4e67-a541-90699ccecfb1
+# ╠═╡ disabled = true
+#=╠═╡
+let
+
+	m = fit(UnfoldModel,Dict(Any=>(@formula(0~1),range(0,0.5,length=size(dat_gt,1)))),evts_gt,dat_gt);
+	@show coef(m)
+	#res_gt = coeftable(m)
+		res_gt.coefname .= "GroundTruth"
+	res_gt2 = vcat(res,res_gt)
+	for b = unique(res.basisname)
+		res_gt.basisname .=b
+		res_gt2 = vcat(res_gt2,res_gt)
+	end
+	res_gt2 
+end
+  ╠═╡ =#
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -100,7 +197,9 @@ PLUTO_PROJECT_TOML_CONTENTS = """
 AlgebraOfGraphics = "cbdf2221-f076-402e-a563-3d30da359d67"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+DataFramesMeta = "1313f7d8-7da2-5740-9ea0-a2ca25f37964"
 MakieThemes = "e296ed71-da82-5faf-88ab-0034a9761098"
+PaddedViews = "5432bcbf-9aad-5242-b902-cca2824c8663"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Unfold = "181c99d8-e21b-4ff3-b70b-c233eddec679"
 UnfoldSim = "ed8ae6d2-84d3-44c6-ab46-0baf21700804"
@@ -109,7 +208,9 @@ UnfoldSim = "ed8ae6d2-84d3-44c6-ab46-0baf21700804"
 AlgebraOfGraphics = "~0.6.14"
 CairoMakie = "~0.10.2"
 DataFrames = "~1.5.0"
+DataFramesMeta = "~0.13.0"
 MakieThemes = "~0.1.0"
+PaddedViews = "~0.5.11"
 Unfold = "~0.3.13"
 UnfoldSim = "~0.1.1"
 """
@@ -120,7 +221,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.3"
 manifest_format = "2.0"
-project_hash = "7245d163c9bdf533b9e36851cf7ba0994ef0bdab"
+project_hash = "70b6806fcda97875d8d648b19217b8115aec143b"
 
 [[deps.AMD]]
 deps = ["Libdl", "LinearAlgebra", "SparseArrays", "Test"]
@@ -265,6 +366,11 @@ git-tree-sha1 = "5084cc1a28976dd1642c9f337b28a3cb03e0f7d2"
 uuid = "324d7699-5711-5eae-9e2f-1d82baa6b597"
 version = "0.10.7"
 
+[[deps.Chain]]
+git-tree-sha1 = "8c4920235f6c561e401dfe569beb8b924adad003"
+uuid = "8be319e6-bccf-4806-a6f7-6fae938471bc"
+version = "0.5.0"
+
 [[deps.ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra", "SparseArrays"]
 git-tree-sha1 = "c6d890a52d2c4d55d326439580c3b8d0875a77d9"
@@ -400,6 +506,12 @@ deps = ["Compat", "DataAPI", "Future", "InlineStrings", "InvertedIndices", "Iter
 git-tree-sha1 = "aa51303df86f8626a962fccb878430cdb0a97eee"
 uuid = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 version = "1.5.0"
+
+[[deps.DataFramesMeta]]
+deps = ["Chain", "DataFrames", "MacroTools", "OrderedCollections", "Reexport"]
+git-tree-sha1 = "f9db5b04be51162fbeacf711005cb36d8434c55b"
+uuid = "1313f7d8-7da2-5740-9ea0-a2ca25f37964"
+version = "0.13.0"
 
 [[deps.DataStructures]]
 deps = ["Compat", "InteractiveUtils", "OrderedCollections"]
@@ -1879,15 +1991,26 @@ version = "3.5.0+0"
 # ╠═7719327d-c451-42ad-9355-a4f2fb0f671d
 # ╠═a81a731a-0ab9-459e-b4c6-78caef61652a
 # ╠═ab7bed9d-0814-490e-8885-95a224feec70
+# ╠═75dcbe94-0a6e-415f-9c04-eb75f1439c2f
 # ╠═cbd9a443-59c2-4662-a3c6-f6a9d463bfef
 # ╠═1ecd3ae3-b316-4c35-908d-357e6f7baeb0
-# ╠═c36a3723-e8a9-4501-bb5b-3405d884b7f5
-# ╠═f9be8d6a-2e64-45e8-b09d-0e26a861dba2
 # ╠═2d2536d6-137e-4b77-a530-4571dfc7e779
+# ╠═800ffab4-3541-4627-b04d-a6817a9e4c0d
 # ╠═b7772ced-53b9-40f3-9835-b06bdcfdf540
-# ╠═2cb755c1-2bae-412f-9dbc-120648434323
+# ╠═e162bf1b-e646-4efd-a094-945ed6d62a9e
+# ╠═d045d631-4aaf-4a5f-aaf7-15f3ebd878d7
+# ╠═16d06f01-2416-43eb-b30f-64cff6752737
+# ╠═7ef8b8c8-3e01-4cf0-8799-8aa6593162d3
+# ╠═9801cb69-5d7d-4d3d-bf6e-1f3cecea19cd
 # ╠═e5d287a7-e02c-4beb-b4e4-198b58b02e0e
+# ╠═0fa83b99-0956-41fc-811d-42f071cd5368
+# ╠═def658db-9f13-4b87-b882-733d885c0ef0
+# ╠═47081864-d798-4bbd-a822-4e4d80e22d4c
+# ╠═3c1f624e-d199-4c6f-9349-b17e32dc02f2
+# ╠═e89c6cb5-65ac-4522-8bef-c98267c6419b
 # ╠═aefef250-4476-4ad2-8d9f-85eace2d9fd3
+# ╠═7d0e138d-c3b8-4775-b26a-cddae594c48d
 # ╠═ad47e6a7-b92b-420d-a584-84ca4219b949
+# ╠═d8901f82-a018-4e67-a541-90699ccecfb1
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
