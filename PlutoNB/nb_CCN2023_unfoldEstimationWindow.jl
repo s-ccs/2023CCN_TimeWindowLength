@@ -85,9 +85,14 @@ end
 # ╔═╡ 1ecd3ae3-b316-4c35-908d-357e6f7baeb0
 lines(dat_gt[:,1])
 
+# ╔═╡ e5883e68-7b99-4f4f-be2e-ec5616c0f0ef
+
+
 # ╔═╡ d045d631-4aaf-4a5f-aaf7-15f3ebd878d7
 begin
-	function compare_window(t, e, time_gt, dat_gt;type="estim")
+	compare_window(t,est;kwargs...) = compare_window(t,est,time_gt,dat_gt;kwargs...)
+	function compare_window(t, est, time_gt, dat_gt;type="estim")
+		@show :time, est
 		start_gt = time_gt[1]
 		end_gt = time_gt[end]
 	
@@ -97,7 +102,6 @@ begin
 			 t = res.time[res.basisname .== "(-3, 3)"]
 			x = sym_paddedviews(0,dat_gt[:,1],(-sum(t.<start_gt)+1:sum(t.>end_gt)+length(dat_gt[:,1])))
 			padded_gt = collect((collect(x))[1])
-			mse = mean((padded_gt .- res.estimate[res.basisname .== "(-3, 3)"]).^2)
 			 
 		 elseif type == "short"
 		
@@ -108,18 +112,17 @@ begin
 		
 			x = append!(zeros(sum(t.<start_gt)), short_gt)
 			padded_gt = collect((collect(x))[1])
-		
-			est = res.estimate[(res.basisname .== "(-3, 3)") .& (res.time .>= t[1]) .& (res.time .<= last(t))]
 			
-			#mse = mean((padded_gt .- est).^2)
-			mse = mean((est .- padded_gt).^2)
-		
+			est = est[(t .>= -0.1) .& (t .<= 0.1)]
+					
 		 elseif type == "gt"
-			est = res.estimate[(res.basisname .== "(-3, 3)") .& (res.time .>= start_gt) .& (res.time .<= end_gt)]
-	
-			mse = mean((dat_gt[:,1] .- est).^2)
+			est = est[(t .>= start_gt) .& (t .<= end_gt)]
+			 padded_gt = dat_gt[:,1]
+			
 	
 		end
+		mse = mean((padded_gt .- est).^2)
+
 	return mse
 	end
 end
@@ -136,14 +139,23 @@ begin
 		tmp_res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(tmp_res.basisname,"("=>"",")"=>""),',')])
 		
 		push!(out,@by(tmp_res,[:basisname],
-			:mse_estim = compare_window(:time,:estimate,time_gt,dat_gt;type="estim"),
-			:mse_short = compare_window(:time,:estimate,time_gt,dat_gt;type="short"),
+			#:mse_estim = compare_window(:time,:estimate,time_gt,dat_gt;type="estim"),
+			#:mse_short = compare_window(:time,:estimate,time_gt,dat_gt;type="short"),
 			:mse_gt = compare_window(:time,:estimate,time_gt,dat_gt);type="gt"))
 	end
 end
 
+# ╔═╡ bb493ce1-43b2-443f-b169-3a76b0e78743
+push!(out,@by(res,[:basisname],
+			#:mse_estim = compare_window(:time,:estimate,time_gt,dat_gt;type="estim"),
+			#:mse_short = compare_window(:time,:estimate,time_gt,dat_gt;type="short"),
+			:mse_gt = compare_window(:time,:estimate;type="estim")))
+
 # ╔═╡ e353093a-e20b-434b-bf5f-d2ced821c3c3
-out
+let
+	dat_one	=@subset(res,:basisname .== "(-3, 3)")
+	compare_window(dat_one.time,dat_one.estimate,time_gt,dat_gt;type="gt")
+end
 
 # ╔═╡ 16d06f01-2416-43eb-b30f-64cff6752737
 t = res.time[res.tWin .== minimum(unique(res.tWin))]
@@ -267,7 +279,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.3"
 manifest_format = "2.0"
-project_hash = "8e21df23ac5955baea0e9d4851faf1d1dcc06142"
+project_hash = "bbfed1a54952f81995e3df7197488cd3228ee601"
 
 [[deps.AMD]]
 deps = ["Libdl", "LinearAlgebra", "SparseArrays", "Test"]
@@ -2044,6 +2056,8 @@ version = "3.5.0+0"
 # ╠═800ffab4-3541-4627-b04d-a6817a9e4c0d
 # ╠═b7772ced-53b9-40f3-9835-b06bdcfdf540
 # ╠═e162bf1b-e646-4efd-a094-945ed6d62a9e
+# ╠═bb493ce1-43b2-443f-b169-3a76b0e78743
+# ╠═e5883e68-7b99-4f4f-be2e-ec5616c0f0ef
 # ╠═e353093a-e20b-434b-bf5f-d2ced821c3c3
 # ╠═d045d631-4aaf-4a5f-aaf7-15f3ebd878d7
 # ╠═16d06f01-2416-43eb-b30f-64cff6752737
