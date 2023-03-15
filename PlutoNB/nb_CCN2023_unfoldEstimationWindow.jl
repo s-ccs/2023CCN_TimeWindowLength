@@ -27,7 +27,7 @@ using DataFramesMeta
 set_theme!(theme_ggthemr(:fresh))
 
 # ╔═╡ a81a731a-0ab9-459e-b4c6-78caef61652a
-tWinList = [(-3,3),(-0.1,0.4),(-0.1,0.3),(-0.1,0.35),(-0.1,0.25),(-0.1,0.15),(-0.1,0.2),(-0.1,0.1)]
+tWinList = [(-3,3),(-0.1,0.4),(-0.1,0.3),(-0.1,0.35),(-0.1,0.25),(-0.1,0.2),(-0.1,0.15),(-0.1,0.1)]
 
 # ╔═╡ ab7bed9d-0814-490e-8885-95a224feec70
 begin
@@ -85,48 +85,6 @@ end
 # ╔═╡ 1ecd3ae3-b316-4c35-908d-357e6f7baeb0
 lines(dat_gt[:,1])
 
-# ╔═╡ e5883e68-7b99-4f4f-be2e-ec5616c0f0ef
-
-
-# ╔═╡ d045d631-4aaf-4a5f-aaf7-15f3ebd878d7
-begin
-	compare_window(t,est;kwargs...) = compare_window(t,est,time_gt,dat_gt;kwargs...)
-	function compare_window(t, est, time_gt, dat_gt;type="estim")
-		@show :time, est
-		start_gt = time_gt[1]
-		end_gt = time_gt[end]
-	
-		#type = "short"
-		 if type == "estim"
-		
-			 t = res.time[res.basisname .== "(-3, 3)"]
-			x = sym_paddedviews(0,dat_gt[:,1],(-sum(t.<start_gt)+1:sum(t.>end_gt)+length(dat_gt[:,1])))
-			padded_gt = collect((collect(x))[1])
-			 
-		 elseif type == "short"
-		
-			res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res.basisname,"("=>"",")"=>""),',')])
-			t = res.time[res.tWin .== minimum(unique(res.tWin))]
-		
-			short_gt = dat_gt[1:length(t[t .>= 0]),1]
-		
-			x = append!(zeros(sum(t.<start_gt)), short_gt)
-			padded_gt = collect((collect(x))[1])
-			
-			est = est[(t .>= -0.1) .& (t .<= 0.1)]
-					
-		 elseif type == "gt"
-			est = est[(t .>= start_gt) .& (t .<= end_gt)]
-			 padded_gt = dat_gt[:,1]
-			
-	
-		end
-		mse = mean((padded_gt .- est).^2)
-
-	return mse
-	end
-end
-
 # ╔═╡ e162bf1b-e646-4efd-a094-945ed6d62a9e
 begin
 	# run simulations 100x
@@ -138,23 +96,145 @@ begin
 		tmp_res = calc_time_models(tmp_evts,tmp_dat,tWinList,sfreq);
 		tmp_res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(tmp_res.basisname,"("=>"",")"=>""),',')])
 		
-		push!(out,@by(tmp_res,[:basisname],
+		#push!(out,@by(tmp_res,[:basisname],
 			#:mse_estim = compare_window(:time,:estimate,time_gt,dat_gt;type="estim"),
 			#:mse_short = compare_window(:time,:estimate,time_gt,dat_gt;type="short"),
-			:mse_gt = compare_window(:time,:estimate,time_gt,dat_gt);type="gt"))
+			#:mse_gt = compare_window(:time,:estimate,time_gt,dat_gt);type="gt"))
+	end
+end
+
+# ╔═╡ 4322b97e-2649-4347-a780-c979d80c0b03
+	bNames = unique(res.basisname)
+
+
+# ╔═╡ 88983d35-6b6a-4d4a-b2b3-fe07ca88a754
+0.2*250
+
+# ╔═╡ 8024880e-c139-4812-b452-cbd06d2f498e
+time_gt[time_gt .> 0.199]
+
+# ╔═╡ 9fd98f26-6ce5-43dd-a7bf-8a2418f0e573
+sum(time_gt .> 0.199)
+
+# ╔═╡ a0f14619-0102-4142-9e82-85c3c809b057
+bNames[1]
+
+# ╔═╡ 0f38e569-0cd6-438b-9382-cba20811feba
+let
+	res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res.basisname,"("=>"",")"=>""),',')])
+	mintW = res.time[res.tWin .== minimum(unique(res.tWin))]
+end
+
+# ╔═╡ d045d631-4aaf-4a5f-aaf7-15f3ebd878d7
+begin
+	compare_window(t,est;kwargs...) = compare_window(t,est,time_gt,dat_gt;kwargs...)
+	function compare_window(t, est, time_gt, dat_gt, mintW;type="estim")
+		#@show :time, est
+		start_gt = time_gt[1]
+		end_gt = time_gt[end]
+	
+		#type = "short"
+		 if type == "estim"
+		
+			 #t = res.time[res.basisname .== "(-3, 3)"]
+			if last(t) <= end_gt
+				# if estimation window is shorter than gt cut gt and add zeros at start
+				short_gt = dat_gt[1:length(t[t .>= 0]),1]
+				x = append!(zeros(sum(t[1].<start_gt)), short_gt)
+				padded_gt = collect((collect(x))[1])
+
+			else		
+				# if est window is longer than gt padd with zeros around gt
+				x = sym_paddedviews(0,dat_gt[:,1],(-sum(t.<start_gt)+1:sum(t.>end_gt)+length(dat_gt[:,1])))
+				padded_gt = collect((collect(x))[1])
+			end
+			 
+		 elseif type == "short"
+		
+			#res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res.basisname,"("=>"",")"=>""),',')])
+			#t = res.time[res.tWin .== minimum(unique(res.tWin))]
+
+			 # shorten gt to shortest time window
+			short_gt = dat_gt[1:length(mintW[mintW .>= 0]),1]
+
+			 # append zeros at front cause gt starts at zero and estim windows start at least at -0.1
+			x = append!(zeros(sum(mintW.<start_gt)), short_gt)
+			padded_gt = collect((collect(x))[1])
+
+			 # Cut estimation window to be as short as shortest
+			est = est[(t .>= mintW[1]) .& (t .<= last(mintW))]
+					
+		 elseif type == "gt"
+			 
+			 if last(t) <= end_gt
+				 # if estim window is shorter than gt add zeros to estim window and cut estimation before zero
+				 est = est[(t .>= start_gt)] 
+				 
+				 println(length(est))
+				 println(last(t))
+				 println(length((zeros(sum(time_gt .> last(t))))))
+
+				 # THIS IS A SUPER HACKY HOTFIX!!
+				 # Should be properly fixed but I am currently too tired; Has to be done because of the sampling rate and because last(t) == 0.19999 and not 0.2; Likely only works for sfreq = 250!!!
+				 if length(est)+sum(time_gt .> last(t)) > length(time_gt)
+					est = append!(est, zeros(sum(time_gt .> last(t))-1))
+				 else
+				 	est = append!(est, zeros(sum(time_gt .> last(t))))
+				 end
+			 else
+				 # otherwise cut estimation to be as long as gt
+				est = est[(t .>= start_gt) .& (t .<= end_gt)]
+			 end
+			padded_gt = dat_gt[:,1]
+			
+	
+		end
+		mse = mean((padded_gt .- est).^2)
+
+	return mse
 	end
 end
 
 # ╔═╡ bb493ce1-43b2-443f-b169-3a76b0e78743
+let
+	res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res.basisname,"("=>"",")"=>""),',')])
+	mintW = res.time[res.tWin .== minimum(unique(res.tWin))]
+	
 push!(out,@by(res,[:basisname],
-			#:mse_estim = compare_window(:time,:estimate,time_gt,dat_gt;type="estim"),
-			#:mse_short = compare_window(:time,:estimate,time_gt,dat_gt;type="short"),
-			:mse_gt = compare_window(:time,:estimate;type="estim")))
+			:mse_estim = compare_window(:time,:estimate,time_gt,dat_gt,mintW;type="estim"),
+			:mse_short = compare_window(:time,:estimate,time_gt,dat_gt,mintW;type="short"),
+			:mse_gt = compare_window(:time,:estimate,time_gt,dat_gt,mintW;type="estim")))
+
+end
+
+# ╔═╡ e5883e68-7b99-4f4f-be2e-ec5616c0f0ef
+let 
+	out = []
+	res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res.basisname,"("=>"",")"=>""),',')])
+	mintW = res.time[res.tWin .== minimum(unique(res.tWin))]
+
+	bNames = unique(res.basisname)
+	for b in bNames
+		#mse = [];
+		#for typ in ["estim", "short", "gt"]
+			dat_one	=@subset(res,:basisname .== b)
+			mse = compare_window(dat_one.time,dat_one.estimate,time_gt,dat_gt, mintW;type="gt");
+			#push!(mse, tmp_mse)
+		#end
+		
+		out = push!(out,mse)	
+			
+	end
+	out
+end
 
 # ╔═╡ e353093a-e20b-434b-bf5f-d2ced821c3c3
 let
+	res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res.basisname,"("=>"",")"=>""),',')])
+	mintW = res.time[res.tWin .== minimum(unique(res.tWin))]
+	
 	dat_one	=@subset(res,:basisname .== "(-3, 3)")
-	compare_window(dat_one.time,dat_one.estimate,time_gt,dat_gt;type="gt")
+	compare_window(dat_one.time,dat_one.estimate,time_gt,dat_gt, mintW;type="short");
 end
 
 # ╔═╡ 16d06f01-2416-43eb-b30f-64cff6752737
@@ -2057,7 +2137,13 @@ version = "3.5.0+0"
 # ╠═b7772ced-53b9-40f3-9835-b06bdcfdf540
 # ╠═e162bf1b-e646-4efd-a094-945ed6d62a9e
 # ╠═bb493ce1-43b2-443f-b169-3a76b0e78743
+# ╠═4322b97e-2649-4347-a780-c979d80c0b03
+# ╠═88983d35-6b6a-4d4a-b2b3-fe07ca88a754
+# ╠═8024880e-c139-4812-b452-cbd06d2f498e
+# ╠═9fd98f26-6ce5-43dd-a7bf-8a2418f0e573
+# ╠═a0f14619-0102-4142-9e82-85c3c809b057
 # ╠═e5883e68-7b99-4f4f-be2e-ec5616c0f0ef
+# ╠═0f38e569-0cd6-438b-9382-cba20811feba
 # ╠═e353093a-e20b-434b-bf5f-d2ced821c3c3
 # ╠═d045d631-4aaf-4a5f-aaf7-15f3ebd878d7
 # ╠═16d06f01-2416-43eb-b30f-64cff6752737
