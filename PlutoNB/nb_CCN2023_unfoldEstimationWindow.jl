@@ -16,10 +16,9 @@ begin
 	using Unfold
 	using MakieThemes
 	using DataFrames
+	using PaddedViews
+	using StatsBase
 end
-
-# ╔═╡ 7ef8b8c8-3e01-4cf0-8799-8aa6593162d3
-using PaddedViews
 
 # ╔═╡ e89c6cb5-65ac-4522-8bef-c98267c6419b
 using DataFramesMeta
@@ -86,38 +85,83 @@ end
 # ╔═╡ 1ecd3ae3-b316-4c35-908d-357e6f7baeb0
 lines(dat_gt[:,1])
 
+# ╔═╡ d045d631-4aaf-4a5f-aaf7-15f3ebd878d7
+begin
+	function compare_window(t, e, time_gt, dat_gt;type="estim")
+		start_gt = time_gt[1]
+		end_gt = time_gt[end]
+	
+		#type = "short"
+		 if type == "estim"
+		
+			 t = res.time[res.basisname .== "(-3, 3)"]
+			x = sym_paddedviews(0,dat_gt[:,1],(-sum(t.<start_gt)+1:sum(t.>end_gt)+length(dat_gt[:,1])))
+			padded_gt = collect((collect(x))[1])
+			mse = mean((padded_gt .- res.estimate[res.basisname .== "(-3, 3)"]).^2)
+			 
+		 elseif type == "short"
+		
+			res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res.basisname,"("=>"",")"=>""),',')])
+			t = res.time[res.tWin .== minimum(unique(res.tWin))]
+		
+			short_gt = dat_gt[1:length(t[t .>= 0]),1]
+		
+			x = append!(zeros(sum(t.<start_gt)), short_gt)
+			padded_gt = collect((collect(x))[1])
+		
+			est = res.estimate[(res.basisname .== "(-3, 3)") .& (res.time .>= t[1]) .& (res.time .<= last(t))]
+			
+			#mse = mean((padded_gt .- est).^2)
+			mse = mean((est .- padded_gt).^2)
+		
+		 elseif type == "gt"
+			est = res.estimate[(res.basisname .== "(-3, 3)") .& (res.time .>= start_gt) .& (res.time .<= end_gt)]
+	
+			mse = mean((dat_gt[:,1] .- est).^2)
+	
+		end
+	return mse
+	end
+end
+
 # ╔═╡ e162bf1b-e646-4efd-a094-945ed6d62a9e
 begin
 	# run simulations 100x
 	rep = 2
 	out = []
 	for r  = 1:rep
-		rng = MersenneTwister(r)
-		dat,evts = gen_data(MersenneTwister(1),8.5,sfreq);
-		res = calc_time_models(evts,dat,tWinList,sfreq);
-		push!(out,@by(res,[:basisname],
-			:mse_estim = compare_window(:time,:estimate;type="estim"),
-			:mse_short = compare_window(:time,:estimate;type="short"),
-			:mse_gt = compare_window(:time,:estimate);type="gt"))
+		tmp_rng = MersenneTwister(r)
+		tmp_dat,tmp_evts = gen_data(tmp_rng,8.5,sfreq);
+		tmp_res = calc_time_models(tmp_evts,tmp_dat,tWinList,sfreq);
+		tmp_res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(tmp_res.basisname,"("=>"",")"=>""),',')])
+		
+		push!(out,@by(tmp_res,[:basisname],
+			:mse_estim = compare_window(:time,:estimate,time_gt,dat_gt;type="estim"),
+			:mse_short = compare_window(:time,:estimate,time_gt,dat_gt;type="short"),
+			:mse_gt = compare_window(:time,:estimate,time_gt,dat_gt);type="gt"))
 	end
 end
 
-# ╔═╡ d045d631-4aaf-4a5f-aaf7-15f3ebd878d7
-begin
-	#function compare_window(t,e;type="estim")
-	start_gt = time_gt[1]
-	end_gt = time_gt[end]
-	t = res.time[res.basisname .== "(-3, 3)"]
-	x = sym_paddedviews(0,dat_gt[:,1],(-sum(t.<start_gt):sum(t.>end_gt)))
-	Vector(collect(x))
-#-sum(t.<start_gt)
-end
+# ╔═╡ e353093a-e20b-434b-bf5f-d2ced821c3c3
+out
 
 # ╔═╡ 16d06f01-2416-43eb-b30f-64cff6752737
-collect(sym_paddedviews(0,[1,2,3,4,5,6,7],(-5:5)))
+t = res.time[res.tWin .== minimum(unique(res.tWin))]
+
+# ╔═╡ 2f26b768-64b2-4316-a11f-facbaf148f9c
+length(dat_gt[:,1]) == length(est)
+
+# ╔═╡ 3b227def-0db7-44fa-98d5-271c6e976509
+typeof(zeros(5))
+
+# ╔═╡ 4c7d0c1d-aa1c-43fe-8ef1-8682220f3bc4
+lines(x)
+
+# ╔═╡ 7ef8b8c8-3e01-4cf0-8799-8aa6593162d3
+lines(est)
 
 # ╔═╡ 9801cb69-5d7d-4d3d-bf6e-1f3cecea19cd
-df_gtd
+df_gt
 
 # ╔═╡ e5d287a7-e02c-4beb-b4e4-198b58b02e0e
 begin
@@ -146,13 +190,13 @@ let
 end
 
 # ╔═╡ def658db-9f13-4b87-b882-733d885c0ef0
-
+unique(res_gt.basisname)
 
 # ╔═╡ 47081864-d798-4bbd-a822-4e4d80e22d4c
 unique(split.(replace.(res_gt.basisname,"("=>"",")"=>""),','))
 
 # ╔═╡ 3c1f624e-d199-4c6f-9349-b17e32dc02f2
-unique(res.basisname)
+minimum(unique(res_gt.tWin))
 
 # ╔═╡ aefef250-4476-4ad2-8d9f-85eace2d9fd3
 let
@@ -201,6 +245,7 @@ DataFramesMeta = "1313f7d8-7da2-5740-9ea0-a2ca25f37964"
 MakieThemes = "e296ed71-da82-5faf-88ab-0034a9761098"
 PaddedViews = "5432bcbf-9aad-5242-b902-cca2824c8663"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 Unfold = "181c99d8-e21b-4ff3-b70b-c233eddec679"
 UnfoldSim = "ed8ae6d2-84d3-44c6-ab46-0baf21700804"
 
@@ -211,6 +256,7 @@ DataFrames = "~1.5.0"
 DataFramesMeta = "~0.13.0"
 MakieThemes = "~0.1.0"
 PaddedViews = "~0.5.11"
+StatsBase = "~0.33.21"
 Unfold = "~0.3.13"
 UnfoldSim = "~0.1.1"
 """
@@ -221,7 +267,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.3"
 manifest_format = "2.0"
-project_hash = "70b6806fcda97875d8d648b19217b8115aec143b"
+project_hash = "8e21df23ac5955baea0e9d4851faf1d1dcc06142"
 
 [[deps.AMD]]
 deps = ["Libdl", "LinearAlgebra", "SparseArrays", "Test"]
@@ -1998,8 +2044,12 @@ version = "3.5.0+0"
 # ╠═800ffab4-3541-4627-b04d-a6817a9e4c0d
 # ╠═b7772ced-53b9-40f3-9835-b06bdcfdf540
 # ╠═e162bf1b-e646-4efd-a094-945ed6d62a9e
+# ╠═e353093a-e20b-434b-bf5f-d2ced821c3c3
 # ╠═d045d631-4aaf-4a5f-aaf7-15f3ebd878d7
 # ╠═16d06f01-2416-43eb-b30f-64cff6752737
+# ╠═2f26b768-64b2-4316-a11f-facbaf148f9c
+# ╠═3b227def-0db7-44fa-98d5-271c6e976509
+# ╠═4c7d0c1d-aa1c-43fe-8ef1-8682220f3bc4
 # ╠═7ef8b8c8-3e01-4cf0-8799-8aa6593162d3
 # ╠═9801cb69-5d7d-4d3d-bf6e-1f3cecea19cd
 # ╠═e5d287a7-e02c-4beb-b4e4-198b58b02e0e
