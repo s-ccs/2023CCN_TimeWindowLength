@@ -85,24 +85,6 @@ end
 # ╔═╡ 1ecd3ae3-b316-4c35-908d-357e6f7baeb0
 lines(dat_gt[:,1])
 
-# ╔═╡ e162bf1b-e646-4efd-a094-945ed6d62a9e
-begin
-	# run simulations 100x
-	rep = 2
-	out = []
-	for r  = 1:rep
-		tmp_rng = MersenneTwister(r)
-		tmp_dat,tmp_evts = gen_data(tmp_rng,8.5,sfreq);
-		tmp_res = calc_time_models(tmp_evts,tmp_dat,tWinList,sfreq);
-		tmp_res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(tmp_res.basisname,"("=>"",")"=>""),',')])
-		
-		#push!(out,@by(tmp_res,[:basisname],
-			#:mse_estim = compare_window(:time,:estimate,time_gt,dat_gt;type="estim"),
-			#:mse_short = compare_window(:time,:estimate,time_gt,dat_gt;type="short"),
-			#:mse_gt = compare_window(:time,:estimate,time_gt,dat_gt);type="gt"))
-	end
-end
-
 # ╔═╡ 4322b97e-2649-4347-a780-c979d80c0b03
 	bNames = unique(res.basisname)
 
@@ -193,6 +175,26 @@ begin
 
 	return mse
 	end
+end
+
+# ╔═╡ e162bf1b-e646-4efd-a094-945ed6d62a9e
+begin
+	# run simulations 100x
+	rep = 2
+	out = []
+	for r  = 1:rep
+		tmp_rng = MersenneTwister(r)
+		tmp_dat,tmp_evts = gen_data(tmp_rng,8.5,sfreq);
+		tmp_res = calc_time_models(tmp_evts,tmp_dat,tWinList,sfreq);
+		tmp_res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(tmp_res.basisname,"("=>"",")"=>""),',')])
+		mintW = res.time[res.tWin .== minimum(unique(res.tWin))]
+
+		push!(out,@by(tmp_res,[:basisname],
+			:mse_estim = compare_window(:time,:estimate,time_gt,dat_gt,mintW;type="estim"),
+			:mse_short = compare_window(:time,:estimate,time_gt,dat_gt,mintW;type="short"),
+			:mse_gt = compare_window(:time,:estimate,time_gt,dat_gt,mintW);type="gt"))
+	end
+	out
 end
 
 # ╔═╡ bb493ce1-43b2-443f-b169-3a76b0e78743
