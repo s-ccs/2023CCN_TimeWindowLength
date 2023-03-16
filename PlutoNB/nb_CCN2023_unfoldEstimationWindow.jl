@@ -18,16 +18,14 @@ begin
 	using DataFrames
 	using PaddedViews
 	using StatsBase
+	using DataFramesMeta
 end
-
-# ╔═╡ e89c6cb5-65ac-4522-8bef-c98267c6419b
-using DataFramesMeta
 
 # ╔═╡ 7719327d-c451-42ad-9355-a4f2fb0f671d
 set_theme!(theme_ggthemr(:fresh))
 
 # ╔═╡ a81a731a-0ab9-459e-b4c6-78caef61652a
-tWinList = [(-3,3),(-0.1,0.4),(-0.1,0.3),(-0.1,0.35),(-0.1,0.25),(-0.1,0.2),(-0.1,0.15),(-0.1,0.1)]
+tWinList = [(-0.1,3),(-0.1,0.5),(-0.1,0.4),(-0.1,0.35),(-0.1,0.30),(-0.1,0.25),(-0.1,0.2),(-0.1,0.15)]
 
 # ╔═╡ ab7bed9d-0814-490e-8885-95a224feec70
 begin
@@ -45,7 +43,6 @@ end
 sfreq = 250
 
 # ╔═╡ 2d2536d6-137e-4b77-a530-4571dfc7e779
-
 function calc_time_models(evts,dat,tWinList,sfreq)
 	mList = []
 	for twindow = tWinList  
@@ -85,28 +82,6 @@ end
 # ╔═╡ 1ecd3ae3-b316-4c35-908d-357e6f7baeb0
 lines(dat_gt[:,1])
 
-# ╔═╡ 4322b97e-2649-4347-a780-c979d80c0b03
-	bNames = unique(res.basisname)
-
-
-# ╔═╡ 88983d35-6b6a-4d4a-b2b3-fe07ca88a754
-0.2*250
-
-# ╔═╡ 8024880e-c139-4812-b452-cbd06d2f498e
-time_gt[time_gt .> 0.199]
-
-# ╔═╡ 9fd98f26-6ce5-43dd-a7bf-8a2418f0e573
-sum(time_gt .> 0.199)
-
-# ╔═╡ a0f14619-0102-4142-9e82-85c3c809b057
-bNames[1]
-
-# ╔═╡ 0f38e569-0cd6-438b-9382-cba20811feba
-let
-	res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res.basisname,"("=>"",")"=>""),',')])
-	mintW = res.time[res.tWin .== minimum(unique(res.tWin))]
-end
-
 # ╔═╡ d045d631-4aaf-4a5f-aaf7-15f3ebd878d7
 begin
 	compare_window(t,est;kwargs...) = compare_window(t,est,time_gt,dat_gt;kwargs...)
@@ -117,31 +92,27 @@ begin
 	
 		#type = "short"
 		 if type == "estim"
-		
-			 #t = res.time[res.basisname .== "(-3, 3)"]
 			if last(t) <= end_gt
 				# if estimation window is shorter than gt cut gt and add zeros at start
 				short_gt = dat_gt[1:length(t[t .>= 0]),1]
-				x = append!(zeros(sum(t[1].<start_gt)), short_gt)
-				padded_gt = collect((collect(x))[1])
+				x = append!(zeros(sum(t.<start_gt)), short_gt)
+				padded_gt = x
 
 			else		
 				# if est window is longer than gt padd with zeros around gt
 				x = sym_paddedviews(0,dat_gt[:,1],(-sum(t.<start_gt)+1:sum(t.>end_gt)+length(dat_gt[:,1])))
 				padded_gt = collect((collect(x))[1])
 			end
-			 
+
 		 elseif type == "short"
-		
-			#res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res.basisname,"("=>"",")"=>""),',')])
-			#t = res.time[res.tWin .== minimum(unique(res.tWin))]
 
 			 # shorten gt to shortest time window
 			short_gt = dat_gt[1:length(mintW[mintW .>= 0]),1]
 
 			 # append zeros at front cause gt starts at zero and estim windows start at least at -0.1
 			x = append!(zeros(sum(mintW.<start_gt)), short_gt)
-			padded_gt = collect((collect(x))[1])
+			padded_gt = x
+	#		padded_gt = collect((collect(x))[1])
 
 			 # Cut estimation window to be as short as shortest
 			est = est[(t .>= mintW[1]) .& (t .<= last(mintW))]
@@ -152,12 +123,12 @@ begin
 				 # if estim window is shorter than gt add zeros to estim window and cut estimation before zero
 				 est = est[(t .>= start_gt)] 
 				 
-				 println(length(est))
-				 println(last(t))
-				 println(length((zeros(sum(time_gt .> last(t))))))
+				 #println(length(est))
+				 #println(last(t))
+				 #println(length((zeros(sum(time_gt .> last(t))))))
 
 				 # THIS IS A SUPER HACKY HOTFIX!!
-				 # Should be properly fixed but I am currently too tired; Has to be done because of the sampling rate and because last(t) == 0.19999 and not 0.2; Likely only works for sfreq = 250!!!
+				 # Should be properly fixed but I am currently too tired; Has to be done because of the sampling rate and because last(t) of (-0.1, 0.2) == 0.19999 and not 0.2; Likely only works for sfreq = 250!!!
 				 if length(est)+sum(time_gt .> last(t)) > length(time_gt)
 					est = append!(est, zeros(sum(time_gt .> last(t))-1))
 				 else
@@ -167,12 +138,12 @@ begin
 				 # otherwise cut estimation to be as long as gt
 				est = est[(t .>= start_gt) .& (t .<= end_gt)]
 			 end
-			padded_gt = dat_gt[:,1]
-			
+			padded_gt = dat_gt[:,1]	
 	
 		end
 		mse = mean((padded_gt .- est).^2)
-
+		
+	#return mse, padded_gt, est
 	return mse
 	end
 end
@@ -180,7 +151,7 @@ end
 # ╔═╡ e162bf1b-e646-4efd-a094-945ed6d62a9e
 begin
 	# run simulations 100x
-	rep = 2
+	rep = 100
 	out = []
 	for r  = 1:rep
 		tmp_rng = MersenneTwister(r)
@@ -192,67 +163,60 @@ begin
 		push!(out,@by(tmp_res,[:basisname],
 			:mse_estim = compare_window(:time,:estimate,time_gt,dat_gt,mintW;type="estim"),
 			:mse_short = compare_window(:time,:estimate,time_gt,dat_gt,mintW;type="short"),
-			:mse_gt = compare_window(:time,:estimate,time_gt,dat_gt,mintW);type="gt"))
+			:mse_gt = compare_window(:time,:estimate,time_gt,dat_gt,mintW;type="gt")))
+		out[r].tWin = unique(tmp_res.tWin)
 	end
 	out
 end
 
-# ╔═╡ bb493ce1-43b2-443f-b169-3a76b0e78743
+# ╔═╡ 16a0479b-b65f-476a-be6f-89e539e56f1c
 let
-	res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res.basisname,"("=>"",")"=>""),',')])
-	mintW = res.time[res.tWin .== minimum(unique(res.tWin))]
-	
-push!(out,@by(res,[:basisname],
-			:mse_estim = compare_window(:time,:estimate,time_gt,dat_gt,mintW;type="estim"),
-			:mse_short = compare_window(:time,:estimate,time_gt,dat_gt,mintW;type="short"),
-			:mse_gt = compare_window(:time,:estimate,time_gt,dat_gt,mintW;type="estim")))
+	out_gdf = groupby(reduce(vcat,out), :basisname)
+	combine(out_gdf, :mse_gt => mean, :mse_gt => std)
 
 end
 
-# ╔═╡ e5883e68-7b99-4f4f-be2e-ec5616c0f0ef
-let 
-	out = []
-	res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res.basisname,"("=>"",")"=>""),',')])
-	mintW = res.time[res.tWin .== minimum(unique(res.tWin))]
-
-	bNames = unique(res.basisname)
-	for b in bNames
-		#mse = [];
-		#for typ in ["estim", "short", "gt"]
-			dat_one	=@subset(res,:basisname .== b)
-			mse = compare_window(dat_one.time,dat_one.estimate,time_gt,dat_gt, mintW;type="gt");
-			#push!(mse, tmp_mse)
-		#end
-		
-		out = push!(out,mse)	
-			
+# ╔═╡ 8a7d8948-a026-4162-befb-aa0ef32f1430
+begin
+	fMSE= Figure()
+	
+	out_test = reduce(vcat,out)
+	@eachrow! out_test begin
+		@newcol :indicator::Vector{String}
+		:indicator = :tWin < 3 ? "1" : "2"
 	end
-	out
+	out_test.tWin[out_test.tWin .== 3] .= 0.7
+	
+	#p_estim = data(reduce(vcat,out)) * mapping(:basisname, :mse_estim, color=:basisname) * visual(BoxPlot)
+	#p_short = data(reduce(vcat,out)) * mapping(:basisname, :mse_short, color=:basisname) * visual(BoxPlot)
+	
+	p_gt = data(out_test) * mapping(:tWin, :mse_gt, color=:basisname) * visual(BoxPlot, width=0.05)
+	
+	#draw!(fMSE[1,1], p_estim, axis=(;xticklabelrotation = π/4))
+	#draw!(fMSE[1,2], p_short, axis=(;xticklabelrotation = π/4))
+	values = reverse(unique(out_test.tWin))
+	labels = ["0.15","0.20","0.25","0.30","0.35","0.4","0.5","3.0"]
+	
+	draw!(fMSE, p_gt, axis=(;ylabel ="Mean Squared Error", xlabel = "Window Length", xticks = (values, labels),xticklabelrotation = π/4),facet=(;linkxaxes=:false))
+	
+	#legend!(fMSE[2,2], x)
+	fMSE
 end
 
-# ╔═╡ e353093a-e20b-434b-bf5f-d2ced821c3c3
+# ╔═╡ b3abc1eb-c69a-491b-9f43-0a69dd2285e6
+#save("/store/users/skukies/Projects/2023CCN_TimeWindowLength/Plots/TimeWindowComparisonMSEResults.png", fMSE)
+
+# ╔═╡ 77e8e379-fcec-4302-8190-065048986975
+values
+
+# ╔═╡ 9733a638-ebed-49ca-b539-889b61cdbff6
+out_test
+
+# ╔═╡ eff968a5-b880-4e2a-92f6-d7cda5009c80
 let
 	res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res.basisname,"("=>"",")"=>""),',')])
-	mintW = res.time[res.tWin .== minimum(unique(res.tWin))]
-	
-	dat_one	=@subset(res,:basisname .== "(-3, 3)")
-	compare_window(dat_one.time,dat_one.estimate,time_gt,dat_gt, mintW;type="short");
+	unique(res.tWin)
 end
-
-# ╔═╡ 16d06f01-2416-43eb-b30f-64cff6752737
-t = res.time[res.tWin .== minimum(unique(res.tWin))]
-
-# ╔═╡ 2f26b768-64b2-4316-a11f-facbaf148f9c
-length(dat_gt[:,1]) == length(est)
-
-# ╔═╡ 3b227def-0db7-44fa-98d5-271c6e976509
-typeof(zeros(5))
-
-# ╔═╡ 4c7d0c1d-aa1c-43fe-8ef1-8682220f3bc4
-lines(x)
-
-# ╔═╡ 7ef8b8c8-3e01-4cf0-8799-8aa6593162d3
-lines(est)
 
 # ╔═╡ 9801cb69-5d7d-4d3d-bf6e-1f3cecea19cd
 df_gt
@@ -272,7 +236,7 @@ let
 	f = Figure()
 	res_gt.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res_gt.basisname,"("=>"",")"=>""),',')])
 	
-	h = data(@subset(res_gt,:basisname .!= "(-3, 3)")) * mapping(:time,:estimate,color=:tWin,group=(:tWin,:coefname)=>(x,y)->string(x)*y)*visual(Lines,colormap=:Reds)|> x->draw!(f,x,axis=(;xlabel="time [s]",ylabel="estimate [a.u.]"),facet=(;linkxaxes=false),palettes=(;linecolor=:RdBu))
+	h = data(@subset(res_gt,:basisname .!= "(-0.1, 3)")) * mapping(:time,:estimate,color=:tWin,group=(:tWin,:coefname)=>(x,y)->string(x)*y)*visual(Lines,colormap=:Reds)|> x->draw!(f,x,axis=(;xlabel="time [s]",ylabel="estimate [a.u.]"),facet=(;linkxaxes=false),palettes=(;linecolor=:RdBu))
 	
 	legend!(f[1,2],h)
 	tmp! = x->(hlines!(x.axis,[0],color=:gray),vlines!(x.axis,[0],color=:gray))
@@ -280,17 +244,31 @@ let
 	
 	#data((x=[-1.0, 1.0], y=[0, 0])) * visual(Lines) * mapping(:x, :y) + data((x=[0.0, 0.0], y=[-5, 5.5])) * visual(Lines) * mapping(:x, :y) 
 #xlims!(current_axis(),[-1,1])
+	#save("/store/users/skukies/Projects/2023CCN_TimeWindowLength/Plots/TimeWindowComparisonQuali.png", f)
+	f
+end
+
+# ╔═╡ e89c6cb5-65ac-4522-8bef-c98267c6419b
+let
+	f = Figure()
+	res_gt.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res_gt.basisname,"("=>"",")"=>""),',')])
+
+	h1 = data(@subset(res_gt,:basisname .!= "(-0.1, 3)")) * mapping(:time,:estimate,color=:tWin,group=(:tWin,:coefname)=>(x,y)->string(x)*y)*visual(Lines,colormap=:Reds)|> x->draw!(f[1,1],x,axis=(;xlabel="time [s]",ylabel="estimate [a.u.]"),facet=(;linkxaxes=false),palettes=(;linecolor=:RdBu))
+	
+	h2 = data(@subset(res_gt,:basisname .== "(-0.1, 3)")) * mapping(:time,:estimate,color=:coefname,group=(:tWin,:coefname)=>(x,y)->string(x)*y)*visual(Lines,colormap=:Reds)|> x->draw!(f[2,1],x,axis=(;xlabel="time [s]",ylabel="estimate [a.u.]"),facet=(;linkxaxes=false),palettes=(;linecolor=:RdBu))
+	
+	#legend!(f[1,2],h)
+	tmp! = x->(hlines!(x.axis,[0],color=:gray),vlines!(x.axis,[0],color=:gray))
+	tmp!.(h1)
+	tmp!.(h2)
+	
+	#data((x=[-1.0, 1.0], y=[0, 0])) * visual(Lines) * mapping(:x, :y) + data((x=[0.0, 0.0], y=[-5, 5.5])) * visual(Lines) * mapping(:x, :y) 
+#xlims!(current_axis(),[-1,1])
 	current_figure()
 end
 
-# ╔═╡ def658db-9f13-4b87-b882-733d885c0ef0
-unique(res_gt.basisname)
-
-# ╔═╡ 47081864-d798-4bbd-a822-4e4d80e22d4c
-unique(split.(replace.(res_gt.basisname,"("=>"",")"=>""),','))
-
-# ╔═╡ 3c1f624e-d199-4c6f-9349-b17e32dc02f2
-minimum(unique(res_gt.tWin))
+# ╔═╡ c97f3161-2107-445b-be20-4d7971b7e568
+res_gt
 
 # ╔═╡ aefef250-4476-4ad2-8d9f-85eace2d9fd3
 let
@@ -310,6 +288,58 @@ typeof(h)
 
 # ╔═╡ ad47e6a7-b92b-420d-a584-84ca4219b949
 #save("/store/users/skukies/TimeWindowComparison.svg", current_figure())
+
+# ╔═╡ 4322b97e-2649-4347-a780-c979d80c0b03
+	bNames = unique(res.basisname)
+
+
+# ╔═╡ e353093a-e20b-434b-bf5f-d2ced821c3c3
+let
+	res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res.basisname,"("=>"",")"=>""),',')])
+	mintW = res.time[res.tWin .== minimum(unique(res.tWin))]
+	
+	dat_one	=@subset(res,:basisname .== bNames[1])
+	_, gt, est = compare_window(dat_one.time,dat_one.estimate,time_gt,dat_gt, mintW;type="estim");
+
+	#t = dat_one.time
+	#short_gt = dat_gt[1:length(t[t .>= 0]),1]
+	#start_gt = time_gt[1]
+	#end_gt = time_gt[end]
+	#x = append!(zeros(sum(t[1].<start_gt)), short_gt)
+	#padded_gt = collect((collect(x))[1])
+	
+	lines(est)
+	lines!(gt)
+	current_figure()
+	mse = mean((gt .- est).^2)
+end
+
+# ╔═╡ 8024880e-c139-4812-b452-cbd06d2f498e
+time_gt[time_gt .> 0.199]
+
+# ╔═╡ 9fd98f26-6ce5-43dd-a7bf-8a2418f0e573
+sum(time_gt .> 0.199)
+
+# ╔═╡ e5883e68-7b99-4f4f-be2e-ec5616c0f0ef
+let 
+	out = []
+	res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res.basisname,"("=>"",")"=>""),',')])
+	mintW = res.time[res.tWin .== minimum(unique(res.tWin))]
+
+	bNames = unique(res.basisname)
+	for b in bNames
+		#mse = [];
+		#for typ in ["estim", "short", "gt"]
+			dat_one	=@subset(res,:basisname .== b)
+			mse = compare_window(dat_one.time,dat_one.estimate,time_gt,dat_gt, mintW;type="estim");
+			#push!(mse, tmp_mse)
+		#end
+		
+		out = push!(out,mse)	
+			
+	end
+	out
+end
 
 # ╔═╡ d8901f82-a018-4e67-a541-90699ccecfb1
 # ╠═╡ disabled = true
@@ -2135,34 +2165,29 @@ version = "3.5.0+0"
 # ╠═cbd9a443-59c2-4662-a3c6-f6a9d463bfef
 # ╠═1ecd3ae3-b316-4c35-908d-357e6f7baeb0
 # ╠═2d2536d6-137e-4b77-a530-4571dfc7e779
+# ╠═d045d631-4aaf-4a5f-aaf7-15f3ebd878d7
 # ╠═800ffab4-3541-4627-b04d-a6817a9e4c0d
 # ╠═b7772ced-53b9-40f3-9835-b06bdcfdf540
 # ╠═e162bf1b-e646-4efd-a094-945ed6d62a9e
-# ╠═bb493ce1-43b2-443f-b169-3a76b0e78743
-# ╠═4322b97e-2649-4347-a780-c979d80c0b03
-# ╠═88983d35-6b6a-4d4a-b2b3-fe07ca88a754
-# ╠═8024880e-c139-4812-b452-cbd06d2f498e
-# ╠═9fd98f26-6ce5-43dd-a7bf-8a2418f0e573
-# ╠═a0f14619-0102-4142-9e82-85c3c809b057
-# ╠═e5883e68-7b99-4f4f-be2e-ec5616c0f0ef
-# ╠═0f38e569-0cd6-438b-9382-cba20811feba
+# ╠═16a0479b-b65f-476a-be6f-89e539e56f1c
+# ╠═8a7d8948-a026-4162-befb-aa0ef32f1430
+# ╠═b3abc1eb-c69a-491b-9f43-0a69dd2285e6
+# ╠═77e8e379-fcec-4302-8190-065048986975
+# ╠═9733a638-ebed-49ca-b539-889b61cdbff6
+# ╠═eff968a5-b880-4e2a-92f6-d7cda5009c80
 # ╠═e353093a-e20b-434b-bf5f-d2ced821c3c3
-# ╠═d045d631-4aaf-4a5f-aaf7-15f3ebd878d7
-# ╠═16d06f01-2416-43eb-b30f-64cff6752737
-# ╠═2f26b768-64b2-4316-a11f-facbaf148f9c
-# ╠═3b227def-0db7-44fa-98d5-271c6e976509
-# ╠═4c7d0c1d-aa1c-43fe-8ef1-8682220f3bc4
-# ╠═7ef8b8c8-3e01-4cf0-8799-8aa6593162d3
 # ╠═9801cb69-5d7d-4d3d-bf6e-1f3cecea19cd
 # ╠═e5d287a7-e02c-4beb-b4e4-198b58b02e0e
 # ╠═0fa83b99-0956-41fc-811d-42f071cd5368
-# ╠═def658db-9f13-4b87-b882-733d885c0ef0
-# ╠═47081864-d798-4bbd-a822-4e4d80e22d4c
-# ╠═3c1f624e-d199-4c6f-9349-b17e32dc02f2
 # ╠═e89c6cb5-65ac-4522-8bef-c98267c6419b
+# ╠═c97f3161-2107-445b-be20-4d7971b7e568
 # ╠═aefef250-4476-4ad2-8d9f-85eace2d9fd3
 # ╠═7d0e138d-c3b8-4775-b26a-cddae594c48d
 # ╠═ad47e6a7-b92b-420d-a584-84ca4219b949
+# ╠═4322b97e-2649-4347-a780-c979d80c0b03
+# ╠═8024880e-c139-4812-b452-cbd06d2f498e
+# ╠═9fd98f26-6ce5-43dd-a7bf-8a2418f0e573
+# ╠═e5883e68-7b99-4f4f-be2e-ec5616c0f0ef
 # ╠═d8901f82-a018-4e67-a541-90699ccecfb1
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
