@@ -30,11 +30,13 @@ tWinList = [(-0.1,3),(-0.1,0.5),(-0.1,0.4),(-0.1,0.35),(-0.1,0.30),(-0.1,0.25),(
 # ╔═╡ ab7bed9d-0814-490e-8885-95a224feec70
 begin
 	function gen_data(rng,noiselevel,sfreq)
-
+		noise = RedNoise(;noiselevel=noiselevel);
+		
 dat,evts = UnfoldSim.predef_eeg(rng;
+		#p1 = (p100(;sfreq=sfreq), @formula(0~1+condition),[5,0],Dict()),
 		n1 = (n170(;sfreq=sfreq), @formula(0~1+condition),[5,0],Dict()),
 		p3 = (p300(;sfreq=sfreq), @formula(0~1+continuous),[5,0],Dict()),
-		n_repeats=20,noiselevel=noiselevel)
+		n_repeats=20,noise=noise)
 		return dat,evts
 	end
 end
@@ -63,9 +65,11 @@ res = calc_time_models(evts,dat,tWinList,sfreq);
 # ╔═╡ cbd9a443-59c2-4662-a3c6-f6a9d463bfef
 begin
 dat_gt,evts_gt = UnfoldSim.predef_eeg(;
+		#p1 = (p100(;sfreq=sfreq), @formula(0~1),[5],Dict()),
 		n1 = (n170(;sfreq=sfreq), @formula(0~1),[5],Dict()),
 		p3 = (p300(;sfreq=sfreq), @formula(0~1),[5],Dict()),
 		n_repeats=1,noiselevel=0, return_epoched=true);
+	#dat_gt = dat_gt.*-1
 time_gt = range(0,length = length(dat_gt[:,1]),step=1/sfreq)
 	df_gt = DataFrame(
 		basisname = reduce(vcat,fill.(unique(res.basisname), length(dat_gt[:,1]))),
@@ -148,16 +152,25 @@ begin
 	end
 end
 
+# ╔═╡ ce4436ca-9e85-40d5-839b-617bc80fa64a
+evts
+
+# ╔═╡ e75b11d3-b798-4281-a09c-608495c42c6c
+function basisToWin(basisname)
+	return parse.(Float64,[s[2] for s in split.(replace.(basisname,"("=>"",")"=>""),',')])
+end
+
 # ╔═╡ e162bf1b-e646-4efd-a094-945ed6d62a9e
 begin
 	# run simulations 100x
-	rep = 100
+	rep = 5
 	out = []
+	
 	for r  = 1:rep
 		tmp_rng = MersenneTwister(r)
 		tmp_dat,tmp_evts = gen_data(tmp_rng,8.5,sfreq);
 		tmp_res = calc_time_models(tmp_evts,tmp_dat,tWinList,sfreq);
-		tmp_res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(tmp_res.basisname,"("=>"",")"=>""),',')])
+		tmp_res.tWin .= basisToWin(tmp_res.basisname)
 		mintW = res.time[res.tWin .== minimum(unique(res.tWin))]
 
 		push!(out,@by(tmp_res,[:basisname],
@@ -197,14 +210,14 @@ begin
 	values = reverse(unique(out_test.tWin))
 	labels = ["0.15","0.20","0.25","0.30","0.35","0.4","0.5","3.0"]
 	
-	draw!(fMSE, p_gt, axis=(;ylabel ="Mean Squared Error", xlabel = "Window Length", xticks = (values, labels),xticklabelrotation = π/4),facet=(;linkxaxes=:false))
+	draw!(fMSE, p_gt, axis=(;ylabel ="Mean Squared Error", xlabel = "Window Length", xticks = (values, labels)),facet=(;linkxaxes=:false))
 	
 	#legend!(fMSE[2,2], x)
 	fMSE
 end
 
 # ╔═╡ b3abc1eb-c69a-491b-9f43-0a69dd2285e6
-#save("/store/users/skukies/Projects/2023CCN_TimeWindowLength/Plots/TimeWindowComparisonMSEResults.png", fMSE)
+#save("/store/users/skukies/Projects/2023CCN_TimeWindowLength/Plots/TimeWindowComparisonMSEResults.svg", fMSE)
 
 # ╔═╡ 77e8e379-fcec-4302-8190-065048986975
 values
@@ -236,7 +249,7 @@ let
 	f = Figure()
 	res_gt.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res_gt.basisname,"("=>"",")"=>""),',')])
 	
-	h = data(@subset(res_gt,:basisname .!= "(-0.1, 3)")) * mapping(:time,:estimate,color=:tWin,group=(:tWin,:coefname)=>(x,y)->string(x)*y)*visual(Lines,colormap=:Reds)|> x->draw!(f,x,axis=(;xlabel="time [s]",ylabel="estimate [a.u.]"),facet=(;linkxaxes=false),palettes=(;linecolor=:RdBu))
+	h = data(@subset(res_gt,:basisname .!= "(-0.1, 3)")) * mapping(:time,:estimate,color=:tWin,group=(:tWin,:coefname)=>(x,y)->string(x)*y)*visual(Lines,colormap=:Reds_3)|> x->draw!(f,x,axis=(;xlabel="time [s]",ylabel="estimate [a.u.]"),facet=(;linkxaxes=false),palettes=(;linecolor=:RdBu))
 	
 	legend!(f[1,2],h)
 	tmp! = x->(hlines!(x.axis,[0],color=:gray),vlines!(x.axis,[0],color=:gray))
@@ -253,18 +266,49 @@ let
 	f = Figure()
 	res_gt.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res_gt.basisname,"("=>"",")"=>""),',')])
 
-	h1 = data(@subset(res_gt,:basisname .!= "(-0.1, 3)")) * mapping(:time,:estimate,color=:tWin,group=(:tWin,:coefname)=>(x,y)->string(x)*y)*visual(Lines,colormap=:Reds)|> x->draw!(f[1,1],x,axis=(;xlabel="time [s]",ylabel="estimate [a.u.]"),facet=(;linkxaxes=false),palettes=(;linecolor=:RdBu))
+	h_t = data(@subset(res_gt,:basisname .!= "(-0.1, 3)")) * mapping(:time,:estimate,color=:tWin,group=(:tWin,:coefname)=>(x,y)->string(x)*y)*visual(Lines,colormap=:vik)
 	
-	h2 = data(@subset(res_gt,:basisname .== "(-0.1, 3)")) * mapping(:time,:estimate,color=:coefname,group=(:tWin,:coefname)=>(x,y)->string(x)*y)*visual(Lines,colormap=:Reds)|> x->draw!(f[2,1],x,axis=(;xlabel="time [s]",ylabel="estimate [a.u.]"),facet=(;linkxaxes=false),palettes=(;linecolor=:RdBu))
+	h_l = data((x=[-0.1, 0.15], y=[8, 8])) * visual(Lines) * mapping(:x, :y) + data((x=[-0.1, 0.2], y=[8.5, 8.5])) * visual(Lines) * mapping(:x, :y) + data((x=[-0.1, 0.25], y=[9, 9])) * visual(Lines) * mapping(:x, :y) + data((x=[-0.1, 0.3], y=[9.5, 9.5])) * visual(Lines) * mapping(:x, :y) + data((x=[-0.1, 0.35], y=[10, 10])) * visual(Lines) * mapping(:x, :y) + data((x=[-0.1, 0.4], y=[10.5, 10.5])) * visual(Lines) * mapping(:x, :y) + data((x=[-0.1, 0.5], y=[11, 11])) * visual(Lines) * mapping(:x, :y)
+
+	
+	h1 = h_t + h_l |> x->draw!(f[1,1],x,axis=(;xlabel="time [s]",ylabel="estimate [a.u.]"),facet=(;linkxaxes=false),palettes=(;linecolor=:bamako))
+	
+	#h2 = data(@subset(res_gt,:basisname .== "(-0.1, 3)")) * mapping(:time,:estimate,color=:coefname,group=(:tWin,:coefname)=>(x,y)->string(x)*y)*visual(Lines,colormap=:Reds)|> x->draw!(f[2,1],x,axis=(;xlabel="time [s]",ylabel="estimate [a.u.]"),facet=(;linkxaxes=false),palettes=(;linecolor=:RdBu))
 	
 	#legend!(f[1,2],h)
 	tmp! = x->(hlines!(x.axis,[0],color=:gray),vlines!(x.axis,[0],color=:gray))
 	tmp!.(h1)
-	tmp!.(h2)
+	#tmp!.(h2)
 	
 	#data((x=[-1.0, 1.0], y=[0, 0])) * visual(Lines) * mapping(:x, :y) + data((x=[0.0, 0.0], y=[-5, 5.5])) * visual(Lines) * mapping(:x, :y) 
 #xlims!(current_axis(),[-1,1])
+	#save("/store/users/skukies/Projects/2023CCN_TimeWindowLength/Plots/TimeWindowComparisonQualiWithTLength.svg", current_figure())
 	current_figure()
+end
+
+# ╔═╡ 3817fa26-4841-42b2-bc4b-2a07c915852b
+let
+	f = Figure()
+	res_gt.tWin .= 	basisToWin(res_gt.basisname)
+	res_gt.tStart .= -0.1
+	h_t = data(@subset(res_gt,:basisname .!= "(-0.1, 3)")) * (
+		( mapping(:time,:estimate,color=:tWin,group=(:tWin,:coefname)=>(x,y)->string(x)*y)*visual(Lines,colormap=:vik))
+		+ (mapping(:tStart,:tWin,color=:tWin)*visual(Lines))
+	)|>draw
+
+	#h1 = h_t  |> x->draw!(f[1,1],x,axis=(;xlabel="time [s]",ylabel="estimate [a.u.]"),facet=(;linkxaxes=false),palettes=(;linecolor=:bamako))
+	
+	#h2 = data(@subset(res_gt,:basisname .== "(-0.1, 3)")) * mapping(:time,:estimate,color=:coefname,group=(:tWin,:coefname)=>(x,y)->string(x)*y)*visual(Lines,colormap=:Reds)|> x->draw!(f[2,1],x,axis=(;xlabel="time [s]",ylabel="estimate [a.u.]"),facet=(;linkxaxes=false),palettes=(;linecolor=:RdBu))
+	
+	#legend!(f[1,2],h)
+	#tmp! = x->(hlines!(x.axis,[0],color=:gray),vlines!(x.axis,[0],color=:gray))
+	#tmp!.(h1)
+	#tmp!.(h2)
+	
+	#data((x=[-1.0, 1.0], y=[0, 0])) * visual(Lines) * mapping(:x, :y) + data((x=[0.0, 0.0], y=[-5, 5.5])) * visual(Lines) * mapping(:x, :y) 
+#xlims!(current_axis(),[-1,1])
+	#save("/store/users/skukies/Projects/2023CCN_TimeWindowLength/Plots/TimeWindowComparisonQualiWithTLength.svg", current_figure())
+	#current_figure()
 end
 
 # ╔═╡ c97f3161-2107-445b-be20-4d7971b7e568
@@ -2168,7 +2212,9 @@ version = "3.5.0+0"
 # ╠═d045d631-4aaf-4a5f-aaf7-15f3ebd878d7
 # ╠═800ffab4-3541-4627-b04d-a6817a9e4c0d
 # ╠═b7772ced-53b9-40f3-9835-b06bdcfdf540
+# ╠═ce4436ca-9e85-40d5-839b-617bc80fa64a
 # ╠═e162bf1b-e646-4efd-a094-945ed6d62a9e
+# ╠═e75b11d3-b798-4281-a09c-608495c42c6c
 # ╠═16a0479b-b65f-476a-be6f-89e539e56f1c
 # ╠═8a7d8948-a026-4162-befb-aa0ef32f1430
 # ╠═b3abc1eb-c69a-491b-9f43-0a69dd2285e6
@@ -2180,6 +2226,7 @@ version = "3.5.0+0"
 # ╠═e5d287a7-e02c-4beb-b4e4-198b58b02e0e
 # ╠═0fa83b99-0956-41fc-811d-42f071cd5368
 # ╠═e89c6cb5-65ac-4522-8bef-c98267c6419b
+# ╠═3817fa26-4841-42b2-bc4b-2a07c915852b
 # ╠═c97f3161-2107-445b-be20-4d7971b7e568
 # ╠═aefef250-4476-4ad2-8d9f-85eace2d9fd3
 # ╠═7d0e138d-c3b8-4775-b26a-cddae594c48d
