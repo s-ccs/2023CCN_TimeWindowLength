@@ -6,6 +6,9 @@ using InteractiveUtils
 
 # ╔═╡ 057bf48c-bcde-11ed-0a9c-b506336f7e4e
 begin
+#using JSServe
+	#using WGLMakie
+#	Page()
 	using UnfoldSim
 	using CairoMakie
 	using AlgebraOfGraphics
@@ -16,37 +19,13 @@ begin
 	using PaddedViews
 	using StatsBase
 	using DataFramesMeta
-	using ColorSchemes
-	using Colors
-	using PlutoUI
 end
-
-# ╔═╡ a4335163-e5b0-4d1e-b9ee-3ba51528e02f
-md"""
-# Time Window Estimation/ Intro
-
-Below you can find the final code used in our project on investigating different estimation windows for overlap correction in the rERP framework.
-
-This is the "cleaned" version of our code, which is likely easier to understand. For the more exploratory (i.e. more unstructured but full) code please have a look at nb_CCN2023_unfoldEstimationWindow_exploration.jl.
-
-Benedikt Ehinger; René Skukies (2023)
-"""
-
-# ╔═╡ 952350cb-f73d-4ccc-a6ac-9ef38977e152
-md"""
-## Load packages
-"""
 
 # ╔═╡ 7719327d-c451-42ad-9355-a4f2fb0f671d
 set_theme!(theme_ggthemr(:fresh))
 
-# ╔═╡ d75016d9-bdb6-4456-99e7-9acfd0b7ca38
-TableOfContents()
-
-# ╔═╡ a23bc30d-6428-42c0-99aa-33cb8e30512f
-md"""
-## Init functions
-"""
+# ╔═╡ a81a731a-0ab9-459e-b4c6-78caef61652a
+tWinList = [(-0.1,3),(-0.1,0.5),(-0.1,0.45),(-0.1,0.4),(-0.1,0.35),(-0.1,0.30),(-0.1,0.25),(-0.1,0.2),(-0.1,0.15)]
 
 # ╔═╡ ab7bed9d-0814-490e-8885-95a224feec70
 begin
@@ -63,6 +42,9 @@ dat,evts = UnfoldSim.predef_eeg(rng;
 	end
 end
 
+# ╔═╡ 75dcbe94-0a6e-415f-9c04-eb75f1439c2f
+sfreq = 250
+
 # ╔═╡ 2d2536d6-137e-4b77-a530-4571dfc7e779
 function calc_time_models(evts,dat,tWinList,sfreq)
 	mList = []
@@ -75,43 +57,8 @@ function calc_time_models(evts,dat,tWinList,sfreq)
 end
 
 
-# ╔═╡ e75b11d3-b798-4281-a09c-608495c42c6c
-function basisToWin(basisname)
-	return parse.(Float64,[s[2] for s in split.(replace.(basisname,"("=>"",")"=>""),',')])
-end
-
-# ╔═╡ cbc0659b-3b23-4076-abbf-0787d0873281
-md"""
-## Init variables
-"""
-
-# ╔═╡ a81a731a-0ab9-459e-b4c6-78caef61652a
-begin
-	tWinList = [(-0.1,3),(-0.1,0.5),(-0.1,0.45),(-0.1,0.4),(-0.1,0.35),(-0.1,0.30),(-0.1,0.25),(-0.1,0.2),(-0.1,0.15)]
-
-	noiselevel = 8.5
-
-	sfreq = 250
-end
-
-# ╔═╡ 657b0773-a33f-4df3-90f1-7a8a432a9554
-md"""
-# Generate Data
-"""
-
-# ╔═╡ 854b1e5f-0826-4a8a-bd2a-df91777c5283
-md"""
-## Generate ground truth data and vizualize it
-"""
-
-# ╔═╡ da581b79-90bf-4564-96f2-b51ae88981a1
-md"""
-## Generate data and results for one interation
-This is used further below for the qualitative plots
-"""
-
 # ╔═╡ 800ffab4-3541-4627-b04d-a6817a9e4c0d
-dat,evts = gen_data(MersenneTwister(2),noiselevel,sfreq);
+dat,evts = gen_data(MersenneTwister(2),8.5,sfreq);
 
 # ╔═╡ 870d4d85-6b10-4b68-a0a1-7299387c49a9
 begin
@@ -120,8 +67,22 @@ vlines!(evts.latency[1:15])
 	current_figure()
 end
 
+# ╔═╡ 2e69b98d-6b33-4d97-8cf5-19afc68a9dee
+evts.latency
+
 # ╔═╡ b7772ced-53b9-40f3-9835-b06bdcfdf540
 res = calc_time_models(evts,dat,tWinList,sfreq);
+
+# ╔═╡ fb2978e1-3967-4f53-ab8c-0dc072b8478e
+res
+
+# ╔═╡ 7d26dc6f-52f9-448b-84ab-3521b40f14d7
+res
+
+# ╔═╡ e75b11d3-b798-4281-a09c-608495c42c6c
+function basisToWin(basisname)
+	return parse.(Float64,[s[2] for s in split.(replace.(basisname,"("=>"",")"=>""),',')])
+end
 
 # ╔═╡ cbd9a443-59c2-4662-a3c6-f6a9d463bfef
 begin
@@ -132,7 +93,7 @@ dat_gt,evts_gt = UnfoldSim.predef_eeg(;
 		p3 = (p300(;sfreq=sfreq), @formula(0~1),[5],Dict()),
 		n_repeats=1,noiselevel=0, return_epoched=true);
 	#dat_gt = dat_gt.*-1
-	time_gt = range(0,length = length(dat_gt[:,1]),step=1/sfreq)
+time_gt = range(0,length = length(dat_gt[:,1]),step=1/sfreq)
 	df_gt = DataFrame(
 		basisname = reduce(vcat,fill.(unique(res.basisname), length(dat_gt[:,1]))),
 		channel = repeat([1], length(dat_gt[:,1])*length(unique(res.basisname))),
@@ -149,6 +110,34 @@ dat_gt,evts_gt = UnfoldSim.predef_eeg(;
 	
 	
 	res_gt = vcat(res, df_gt);
+end
+
+# ╔═╡ 42955119-6fc2-49cf-8423-15ae6fe6ebeb
+	a = vcat(res, df_gt);
+
+
+# ╔═╡ 9154953f-13b4-4328-9136-c6ccfed506af
+df_gt
+
+# ╔═╡ 1ecd3ae3-b316-4c35-908d-357e6f7baeb0
+lines(dat_gt[:,1])
+
+# ╔═╡ 1027dde7-4033-40a3-98b9-1cdc21de8326
+let
+	d = @subset(res, res.basisname .== "(-0.1, 3)")
+	t = d.time
+	start_gt = time_gt[1]
+	end_gt = time_gt[end]
+	#x = sym_paddedviews(0,dat_gt[:,1],(-sum(t.<start_gt)+1:sum(t.>end_gt)+length(dat_gt[:,1])))
+	est = d.estimate[(t .>= start_gt) .& (t .<= end_gt)]
+	#x = append!(x, zeros(sum(t.>end_gt)))
+	padded_gt = dat_gt[:,1]
+	
+	lines(padded_gt)
+	lines!(est)
+	@show mean((padded_gt .- est).^2)
+	@show sum((padded_gt .- est).^2)
+	current_figure()
 end
 
 # ╔═╡ d045d631-4aaf-4a5f-aaf7-15f3ebd878d7
@@ -218,104 +207,6 @@ begin
 	end
 end
 
-# ╔═╡ 1ecd3ae3-b316-4c35-908d-357e6f7baeb0
-lines(dat_gt[:,1])
-
-# ╔═╡ 1e96f1ef-cc06-454f-b739-da3b02505f84
-md"""
-# Analysis
-"""
-
-# ╔═╡ 41350cb9-0967-4e69-abfc-ceb9b463b3c2
-md"""
-## Run simulation 100 times for MSE results
-"""
-
-# ╔═╡ e162bf1b-e646-4efd-a094-945ed6d62a9e
-begin
-	# run simulations 100x
-	rep = 100
-	out = []
-	
-	for r  = 1:rep
-		tmp_rng = MersenneTwister(r)
-		tmp_dat,tmp_evts = gen_data(tmp_rng,noiselevel,sfreq);
-		tmp_res = calc_time_models(tmp_evts,tmp_dat,tWinList,sfreq);
-		tmp_res.tWin .= basisToWin(tmp_res.basisname)
-		mintW = tmp_res.time[tmp_res.tWin .== minimum(unique(tmp_res.tWin))]
-
-		push!(out,@by(tmp_res,[:basisname],
-			:mse_estim = compare_window(:time,:estimate,time_gt,dat_gt,mintW;type="estim"),
-			:mse_short = compare_window(:time,:estimate,time_gt,dat_gt,mintW;type="short"),
-			:mse_gt = compare_window(:time,:estimate,time_gt,dat_gt,mintW;type="gt")))
-		out[r].tWin = unique(tmp_res.tWin)
-	end
-	out
-end
-
-# ╔═╡ 20c6c789-7ee2-4828-92a5-1c87041b746f
-md"""
-## Calculate mean MSE values
-"""
-
-# ╔═╡ 16a0479b-b65f-476a-be6f-89e539e56f1c
-let
-	out_gdf = groupby(reduce(vcat,out), :basisname)
-	combine(out_gdf, :mse_gt => mean, :mse_gt => std)
-end
-
-# ╔═╡ 076f4f76-d417-4925-85cb-fd0e3b8219a9
-md"""
-# Visualization
-"""
-
-# ╔═╡ db0b306f-8411-4f7c-a225-dd3f1d6d4f2c
-md"""
-## Visualize MSE values
-Figure 2 in the paper
-"""
-
-# ╔═╡ 8a7d8948-a026-4162-befb-aa0ef32f1430
-begin
-	fMSE= Figure()
-	
-	out_test = reduce(vcat,out)
-	@eachrow! out_test begin
-		@newcol :indicator::Vector{String}
-		:indicator = :tWin < 3 ? "1" : "2"
-	end
-	out_test.tWin[out_test.tWin .== 3] .= 0.7
-
-	out_long = @subset(out_test,:basisname .== "(-0.1, 3)")
-	out_long.tWin[out_long.tWin .== 0.7] .= 0.75
-	
-	p_gt = data(out_test) * mapping(:tWin, :mse_gt, color=:basisname) * visual(BoxPlot, width=0.05) + data(out_long) * mapping(:tWin, :mse_estim) * visual(BoxPlot, width=0.05)
-	
-	values = reverse(unique(out_test.tWin))
-	
-	labels = string.(values)
-	labels[end] = "3.0"
-	
-	draw!(fMSE, p_gt, axis=(;ylabel ="Mean Squared Error", xlabel = "Window Length", xticks = (values, labels)),facet=(;linkxaxes=:false))
-	
-	fMSE
-end
-
-# ╔═╡ b3abc1eb-c69a-491b-9f43-0a69dd2285e6
-# With this you can save the figure above
-#save("/store/users/skukies/Projects/2023CCN_TimeWindowLength/Plots/TimeWindowComparisonMSEResults.png", fMSE)
-
-# ╔═╡ 08f69900-8b41-4b55-8653-0e94ac1522ed
-md"""
-## Qualitative results from one simulation
-"""
-
-# ╔═╡ f27ec5b3-530b-416e-8faf-c55c346344cb
-md"""
-### Estimations VS. Ground Truth
-Figure 1 in the paper
-"""
-
 # ╔═╡ e89c6cb5-65ac-4522-8bef-c98267c6419b
 let
 	
@@ -333,28 +224,181 @@ let
 	segDF.tWin[1:2:end] .= segDF.x[2:2:end]
 	segDF.tWin[2:2:end] .= segDF.x[2:2:end]
 	
-	segDF.y = segDF.y .* 0.2 .+ 7.5
+	segDF.y = segDF.y .* 0.2 .+ 6
 	
 
 	
 	#DataFrame()
 	h_l = data(@subset(segDF,:tWin .!=3.0))* mapping(:x,:y,color=:tWin,group=:tWin=>x->string.(x))
 	
+	using ColorSchemes
+	using Colors
 	h_gt = data(df_gt) * mapping(:time,:estimate,group=(:tWin,:coefname)=>(x,y)->string(x)*y)*visual(Lines,linewidth=5,color=Colors.Gray(0.6))
 
 	
 	h1 = h_gt + visual(Lines,colormap=get(ColorSchemes.Reds,0.3:0.01:1)) * (h_l + h_t) |> x->draw!(f[1,1],x,axis=(;xlabel="time [s]",ylabel="estimate [a.u.]"))
 	
+	#h2 = data(@subset(res_gt,:basisname .== "(-0.1, 3)")) * mapping(:time,:estimate,color=:coefname,group=(:tWin,:coefname)=>(x,y)->string(x)*y)*visual(Lines,colormap=:Reds)|> x->draw!(f[2,1],x,axis=(;xlabel="time [s]",ylabel="estimate [a.u.]"),facet=(;linkxaxes=false),palettes=(;linecolor=:RdBu))
 	
 	#legend!(f[1,2],h)
 	h1 = hlines!(current_axis(),[0],color=Colors.Gray(0.8))
 	h2 = vlines!(current_axis(),[0],color=Colors.Gray(0.8))
 	translate!(h1, 0, 0, -1)
 	translate!(h2, 0, 0, -1)
-
-	#save("/store/users/skukies/Projects/2023CCN_TimeWindowLength/Plots/TimeWindowComparisonQuali.png", current_figure())
+	
+	#tmp!.(h2)
+	
+	#data((x=[-1.0, 1.0], y=[0, 0])) * visual(Lines) * mapping(:x, :y) + data((x=[0.0, 0.0], y=[-5, 5.5])) * visual(Lines) * mapping(:x, :y) 
+#xlims!(current_axis(),[-1,1])
+	#save("/store/users/skukies/Projects/2023CCN_TimeWindowLength/Plots/TimeWindowComparisonQualiWithTLength.svg", current_figure())
 	current_figure()
 	#h
+end
+
+# ╔═╡ 7a74e3e5-c8e6-4a1d-9719-d4b697328a03
+let
+	tWinLong = [(-0.1,x) for x in reverse([3,2.5,2,1.5,1,0.5])]
+	d = calc_time_models(evts,dat,tWinLong,sfreq)
+@show first(d,6)
+	#d = @subset(res, res.basisname .== "(-0.1, 3)")
+	t = d.time
+	start_gt = time_gt[1]
+	end_gt = time_gt[end]
+	#x = sym_paddedviews(0,dat_gt[:,1],(-sum(t.<start_gt)+1:sum(t.>end_gt)+length(dat_gt[:,1])))
+	#x= append!(zeros(sum(t.<start_gt)), dat_gt[:,1],zeros(sum(t.>end_gt)))
+	#x = append!(x, zeros(sum(t.>end_gt)))
+	#padded_gt = x
+	d.tWin = basisToWin(d.basisname)
+	data(d)*mapping(:time,:estimate,color=:tWin,group=:tWin=>nonnumeric)*visual(Lines,colormap=reverse(get(ColorSchemes.Blues,0.3:0.01:1)))|>draw
+	lines!(time_gt,dat_gt[:,1],color=Colors.Gray(0.2),linewidth=3)
+	#lines!(t,d.estimate,linewidth=2)
+	#@show mean((padded_gt .- d.estimate).^2)
+	#@show sum((padded_gt .- d.estimate).^2)
+	current_figure()
+end
+
+# ╔═╡ e162bf1b-e646-4efd-a094-945ed6d62a9e
+begin
+	# run simulations 100x
+	rep = 100
+	out = []
+	
+	for r  = 1:rep
+		tmp_rng = MersenneTwister(r*10)
+		tmp_dat,tmp_evts = gen_data(tmp_rng,8.5,sfreq);
+		tmp_res = calc_time_models(tmp_evts,tmp_dat,tWinList,sfreq);
+		tmp_res.tWin .= basisToWin(tmp_res.basisname)
+		mintW = tmp_res.time[tmp_res.tWin .== minimum(unique(tmp_res.tWin))]
+
+		push!(out,@by(tmp_res,[:basisname],
+			:mse_estim = compare_window(:time,:estimate,time_gt,dat_gt,mintW;type="estim"),
+			:mse_short = compare_window(:time,:estimate,time_gt,dat_gt,mintW;type="short"),
+			:mse_gt = compare_window(:time,:estimate,time_gt,dat_gt,mintW;type="gt")))
+		out[r].tWin = unique(tmp_res.tWin)
+	end
+	out
+end
+
+# ╔═╡ 16a0479b-b65f-476a-be6f-89e539e56f1c
+let
+	out_gdf = groupby(reduce(vcat,out), :basisname)
+	combine(out_gdf, :mse_gt => mean, :mse_gt => std)
+
+end
+
+# ╔═╡ 8a7d8948-a026-4162-befb-aa0ef32f1430
+begin
+	fMSE= Figure()
+	
+	out_test = reduce(vcat,out)
+	@eachrow! out_test begin
+		@newcol :indicator::Vector{String}
+		:indicator = :tWin < 3 ? "1" : "2"
+	end
+	out_test.tWin[out_test.tWin .== 3] .= 0.7
+
+	out_long = @subset(out_test,:basisname .== "(-0.1, 3)")
+	out_long.tWin[out_long.tWin .== 0.7] .= 0.75
+
+	#p_estim = data(reduce(vcat,out)) * mapping(:basisname, :mse_estim, color=:basisname) * visual(BoxPlot)
+	#p_short = data(reduce(vcat,out)) * mapping(:basisname, :mse_short, color=:basisname) * visual(BoxPlot)
+	
+	p_gt = data(out_test) * mapping(:tWin, :mse_gt, color=:basisname) * visual(BoxPlot, width=0.05) + data(out_long) * mapping(:tWin, :mse_estim) * visual(BoxPlot, width=0.05)
+	
+	#draw!(fMSE[1,1], p_estim, axis=(;xticklabelrotation = π/4))
+	#draw!(fMSE[1,2], p_short, axis=(;xticklabelrotation = π/4))
+	values = reverse(unique(out_test.tWin))
+	
+	labels = string.(values)
+	labels[end] = "3.0"
+	
+	draw!(fMSE, p_gt, axis=(;ylabel ="Mean Squared Error", xlabel = "Window Length", xticks = (values, labels)),facet=(;linkxaxes=:false))
+	
+	#legend!(fMSE[2,2], x)
+	fMSE
+end
+
+# ╔═╡ 2d8e2259-9d16-4deb-9c53-b96384913277
+let
+	fMSE= Figure()
+	
+	out_test = reduce(vcat,out)
+	@eachrow! out_test begin
+		@newcol :indicator::Vector{String}
+		:indicator = :tWin < 3 ? "1" : "2"
+	end
+	out_test.tWin[out_test.tWin .== 3] .= 0.7
+
+	out_long = @subset(out_test,:basisname .== "(-0.1, 3)")
+	out_long.tWin[out_long.tWin .== 0.7] .= 0.75
+
+	#p_estim = data(reduce(vcat,out)) * mapping(:basisname, :mse_estim, color=:basisname) * visual(BoxPlot)
+	#p_short = data(reduce(vcat,out)) * mapping(:basisname, :mse_short, color=:basisname) * visual(BoxPlot)
+	
+	p_gt = data(stack(out_test,["mse_estim","mse_short","mse_gt"])) * mapping(:tWin, :value,col=:variable, color=:basisname) * visual(BoxPlot, width=0.05) + data(out_long) * mapping(:tWin, :mse_estim) * visual(BoxPlot, width=0.05)
+	
+	#draw!(fMSE[1,1], p_estim, axis=(;xticklabelrotation = π/4))
+	#draw!(fMSE[1,2], p_short, axis=(;xticklabelrotation = π/4))
+	values = reverse(unique(out_test.tWin))
+	values[end] =values[end] +0.025
+	labels = string.(values)
+	labels[end] = "3.0"
+	
+	draw!(fMSE, p_gt, axis=(;ylabel ="Mean Squared Error", xlabel = "Window Length", xticks = (values, labels)),facet=(;linkxaxes=:false))
+	
+	#legend!(fMSE[2,2], x)
+	fMSE
+end
+
+# ╔═╡ 7c6fe9c2-54a1-443b-be1e-03f4928c3b8a
+out_test
+
+# ╔═╡ b3abc1eb-c69a-491b-9f43-0a69dd2285e6
+#save("/store/users/skukies/Projects/2023CCN_TimeWindowLength/Plots/TimeWindowComparisonMSEResults.svg", fMSE)
+
+# ╔═╡ 77e8e379-fcec-4302-8190-065048986975
+values
+
+# ╔═╡ 9733a638-ebed-49ca-b539-889b61cdbff6
+out_test
+
+# ╔═╡ eff968a5-b880-4e2a-92f6-d7cda5009c80
+#let
+#	res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res.basisname,"("=>"",")"=>""),',')])
+#	unique(res.tWin)
+#end
+
+# ╔═╡ 9801cb69-5d7d-4d3d-bf6e-1f3cecea19cd
+df_gt
+
+# ╔═╡ e5d287a7-e02c-4beb-b4e4-198b58b02e0e
+begin
+
+	data(res) * mapping(:time,:estimate,layout=:basisname,color=:basisname)*visual(Lines) + data((x=[-1.0, 1.0], y=[0, 0])) * visual(Lines) * mapping(:x, :y) + data((x=[0.0, 0.0], y=[-5, 5.5])) * visual(Lines) * mapping(:x, :y)|> draw
+xlims!(current_axis(),[-1,1])
+	#hlines!(0, color=:grey)
+	#vlines!(0, color=:grey)
+	current_figure()
 end
 
 # ╔═╡ 0fa83b99-0956-41fc-811d-42f071cd5368
@@ -374,89 +418,52 @@ let
 	f
 end
 
-# ╔═╡ e02deee7-59a9-4e7f-b76f-e50d3a1188e0
-md"""
-### Aftereffects of long Estimation Windows
-"""
+# ╔═╡ b87a69f7-8720-48bb-91e6-10c30f3b0923
+res_gt
 
-# ╔═╡ 7a74e3e5-c8e6-4a1d-9719-d4b697328a03
-let
-	f = Figure()
-	tWinLong = [(-0.1,x) for x in [3,2.5,2,1.5,1,0.5]]
-	#tWinLong = reverse(tWinLong)
-	d = calc_time_models(evts,dat,tWinLong,sfreq)
-	d.tWin = basisToWin(d.basisname)
-	
-	@show first(d, 5)
-	
-	untWin = unique(d.tWin)
-	segDF = 	DataFrame(
-		:x=>hcat(repeat([-0.1],length(untWin)),untWin)'[:],
-		:y=>repeat(reverse(1:length(untWin)),inner=2))
-	segDF.tWin .= 0.
-	segDF.tWin[1:2:end] .= segDF.x[2:2:end]
-	segDF.tWin[2:2:end] .= segDF.x[2:2:end]
-	
-	segDF.y = segDF.y .* 0.2 .+ 6
-
-	h_l = data(segDF)* mapping(:x,:y,color=:tWin,group=:tWin=>nonnumeric)
-	
-	t = d.time
-	start_gt = time_gt[1]
-	end_gt = time_gt[end]
-
-	visual(Lines,colormap=reverse(get(ColorSchemes.Blues,0.3:0.01:1.2))) * (h_l + data(d)*mapping(:time,:estimate,color=:tWin,group=:tWin=>nonnumeric))|>x->draw!(f,x,axis=(;xlabel="time [s]",ylabel="estimate [a.u.]"))
-	lines!(time_gt,dat_gt[:,1],color=Colors.Gray(0.2),linewidth=3)
-
-	h1 = hlines!(current_axis(),[0],color=Colors.Gray(0.8))
-	h2 = vlines!(current_axis(),[0],color=Colors.Gray(0.8))
-	translate!(h1, 0, 0, -1)
-	translate!(h2, 0, 0, -1)
-	
-	#save("/store/users/skukies/Projects/2023CCN_TimeWindowLength/Plots/LongWindowComparisonQuali.png", current_figure())
-	current_figure()
-end
-
-# ╔═╡ 232539e4-6ade-42fa-b6df-fe490e55a84d
-md"""
-### Longest Estimation Windowg VS Ground Truth
-"""
-
-# ╔═╡ 1027dde7-4033-40a3-98b9-1cdc21de8326
-let
-	d = @subset(res, res.basisname .== "(-0.1, 3)")
-	t = d.time
-	start_gt = time_gt[1]
-	end_gt = time_gt[end]
-	#x = sym_paddedviews(0,dat_gt[:,1],(-sum(t.<start_gt)+1:sum(t.>end_gt)+length(dat_gt[:,1])))
-	est = d.estimate[(t .>= start_gt) .& (t .<= end_gt)]
-	#x = append!(x, zeros(sum(t.>end_gt)))
-	padded_gt = dat_gt[:,1]
-	
-	lines(padded_gt)
-	lines!(est)
-	@show mean((padded_gt .- est).^2)
-	@show sum((padded_gt .- est).^2)
-	current_figure()
-end
-
-# ╔═╡ aab2cc78-84e7-4231-983e-c164a5e2ed82
-md"""
-### Sub-Plot Comparison of different Estimation Windows
-"""
-
-# ╔═╡ e5d287a7-e02c-4beb-b4e4-198b58b02e0e
+# ╔═╡ 3817fa26-4841-42b2-bc4b-2a07c915852b
 let
 	f = Figure()
 	
-	h = data(res) * mapping(:time,:estimate,layout=:basisname,color=:basisname)*visual(Lines) |> x->draw!(f,x,facet=(;linkxaxes=false))
+	res_gt.tStart .= -0.1
+	h_t = data(@subset(res_gt,:basisname .!= "(-0.1, 3)")) * (
+		( mapping(:time,:estimate,color=:tWin,group=(:tWin,:coefname)=>(x,y)->string(x)*y)*visual(Lines,colormap=:vik))
+		+ (mapping(:tStart,:tWin,color=:tWin)*visual(Lines))
+	)|>draw
 
-	tmp! = x->(hlines!(x.axis,[0],color=:gray),vlines!(x.axis,[0],color=:gray))
-	tmp!.(h)
-	#hlines!(0, color=:grey)
-	#vlines!(0, color=:grey)
-	current_figure()
+
+
+	
+# define an index to dodge the lines vertically
+#p[!,:sigindex] .=  [findfirst(un .== x) for x in p.coefname]
+
+#scaleY = [minimum(res_gt.estimate),maximum(res_gt.estimate)]
+#stepY = scaleY[2]-scaleY[1]
+#posY = stepY*-0.05+scaleY[1]
+#Δt = diff(plotData.time[1:2])[1]
+#Δy = 0.01
+p[!,:segments] = [
+	Makie.Rect(Makie.Vec(x,posY+stepY*(Δy*(n-1))),
+			 Makie.Vec(y-x+Δt,0.5*Δy*stepY)) for (x,y,n) in zip(p.from,p.to,p.sigindex)]
+return (data(p)*mapping(:segments)*visual(Poly))
+	
+	#h1 = h_t  |> x->draw!(f[1,1],x,axis=(;xlabel="time [s]",ylabel="estimate [a.u.]"),facet=(;linkxaxes=false),palettes=(;linecolor=:bamako))
+	
+	#h2 = data(@subset(res_gt,:basisname .== "(-0.1, 3)")) * mapping(:time,:estimate,color=:coefname,group=(:tWin,:coefname)=>(x,y)->string(x)*y)*visual(Lines,colormap=:Reds)|> x->draw!(f[2,1],x,axis=(;xlabel="time [s]",ylabel="estimate [a.u.]"),facet=(;linkxaxes=false),palettes=(;linecolor=:RdBu))
+	
+	#legend!(f[1,2],h)
+	#tmp! = x->(hlines!(x.axis,[0],color=:gray),vlines!(x.axis,[0],color=:gray))
+	#tmp!.(h1)
+	#tmp!.(h2)
+	
+	#data((x=[-1.0, 1.0], y=[0, 0])) * visual(Lines) * mapping(:x, :y) + data((x=[0.0, 0.0], y=[-5, 5.5])) * visual(Lines) * mapping(:x, :y) 
+#xlims!(current_axis(),[-1,1])
+	#save("/store/users/skukies/Projects/2023CCN_TimeWindowLength/Plots/TimeWindowComparisonQualiWithTLength.svg", current_figure())
+	#current_figure()
 end
+
+# ╔═╡ c97f3161-2107-445b-be20-4d7971b7e568
+res_gt
 
 # ╔═╡ aefef250-4476-4ad2-8d9f-85eace2d9fd3
 let
@@ -471,6 +478,83 @@ let
 	current_figure()
 end
 
+# ╔═╡ 7d0e138d-c3b8-4775-b26a-cddae594c48d
+typeof(h)
+
+# ╔═╡ ad47e6a7-b92b-420d-a584-84ca4219b949
+#save("/store/users/skukies/TimeWindowComparison.svg", current_figure())
+
+# ╔═╡ 4322b97e-2649-4347-a780-c979d80c0b03
+	bNames = unique(res.basisname)
+
+
+# ╔═╡ e353093a-e20b-434b-bf5f-d2ced821c3c3
+let
+	res = deepcopy(res)
+	res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res.basisname,"("=>"",")"=>""),',')])
+	mintW = res.time[res.tWin .== minimum(unique(res.tWin))]
+	
+	dat_one	=@subset(res,:basisname .== bNames[1])
+	_, gt, est = compare_window(dat_one.time,dat_one.estimate,time_gt,dat_gt, mintW;type="estim");
+
+	#t = dat_one.time
+	#short_gt = dat_gt[1:length(t[t .>= 0]),1]
+	#start_gt = time_gt[1]
+	#end_gt = time_gt[end]
+	#x = append!(zeros(sum(t[1].<start_gt)), short_gt)
+	#padded_gt = collect((collect(x))[1])
+	
+	lines(est)
+	lines!(gt)
+	current_figure()
+	mse = mean((gt .- est).^2)
+end
+
+# ╔═╡ 8024880e-c139-4812-b452-cbd06d2f498e
+time_gt[time_gt .> 0.199]
+
+# ╔═╡ 9fd98f26-6ce5-43dd-a7bf-8a2418f0e573
+sum(time_gt .> 0.199)
+
+# ╔═╡ e5883e68-7b99-4f4f-be2e-ec5616c0f0ef
+let 
+	out = []
+
+	mintW = res.time[res.tWin .== minimum(unique(res.tWin))]
+
+	bNames = unique(res.basisname)
+	for b in bNames
+		#mse = [];
+		#for typ in ["estim", "short", "gt"]
+			dat_one	=@subset(res,:basisname .== b)
+			mse = compare_window(dat_one.time,dat_one.estimate,time_gt,dat_gt, mintW;type="estim");
+			#push!(mse, tmp_mse)
+		#end
+		
+		out = push!(out,mse)	
+			
+	end
+	out
+end
+
+# ╔═╡ d8901f82-a018-4e67-a541-90699ccecfb1
+# ╠═╡ disabled = true
+#=╠═╡
+let
+
+	m = fit(UnfoldModel,Dict(Any=>(@formula(0~1),range(0,0.5,length=size(dat_gt,1)))),evts_gt,dat_gt);
+	@show coef(m)
+	#res_gt = coeftable(m)
+		res_gt.coefname .= "GroundTruth"
+	res_gt2 = vcat(res,res_gt)
+	for b = unique(res.basisname)
+		res_gt.basisname .=b
+		res_gt2 = vcat(res_gt2,res_gt)
+	end
+	res_gt2 
+end
+  ╠═╡ =#
+
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
@@ -482,7 +566,6 @@ DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 DataFramesMeta = "1313f7d8-7da2-5740-9ea0-a2ca25f37964"
 MakieThemes = "e296ed71-da82-5faf-88ab-0034a9761098"
 PaddedViews = "5432bcbf-9aad-5242-b902-cca2824c8663"
-PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 Unfold = "181c99d8-e21b-4ff3-b70b-c233eddec679"
@@ -497,7 +580,6 @@ DataFrames = "~1.5.0"
 DataFramesMeta = "~0.13.0"
 MakieThemes = "~0.1.0"
 PaddedViews = "~0.5.11"
-PlutoUI = "~0.7.50"
 StatsBase = "~0.33.21"
 Unfold = "~0.3.13"
 UnfoldSim = "~0.1.1"
@@ -509,7 +591,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.3"
 manifest_format = "2.0"
-project_hash = "237d762c5759b6d7e643e1c5077ab794a5046208"
+project_hash = "799a1bc24279e90f1b884996d2075157d2df1504"
 
 [[deps.AMD]]
 deps = ["Libdl", "LinearAlgebra", "SparseArrays", "Test"]
@@ -522,12 +604,6 @@ deps = ["ChainRulesCore", "LinearAlgebra"]
 git-tree-sha1 = "69f7020bd72f069c219b5e8c236c1fa90d2cb409"
 uuid = "621f4979-c628-5d54-868e-fcf4e3e8185c"
 version = "1.2.1"
-
-[[deps.AbstractPlutoDingetjes]]
-deps = ["Pkg"]
-git-tree-sha1 = "8eaf9f1b4921132a4cff3f36a1d9ba923b14a481"
-uuid = "6e696c72-6542-2067-7265-42206c756150"
-version = "1.1.4"
 
 [[deps.AbstractTrees]]
 git-tree-sha1 = "faa260e4cb5aba097a73fab382dd4b5819d8ec8c"
@@ -1080,24 +1156,6 @@ git-tree-sha1 = "709d864e3ed6e3545230601f94e11ebc65994641"
 uuid = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
 version = "0.3.11"
 
-[[deps.Hyperscript]]
-deps = ["Test"]
-git-tree-sha1 = "8d511d5b81240fc8e6802386302675bdf47737b9"
-uuid = "47d2ed2b-36de-50cf-bf87-49c2cf4b8b91"
-version = "0.0.4"
-
-[[deps.HypertextLiteral]]
-deps = ["Tricks"]
-git-tree-sha1 = "c47c5fa4c5308f27ccaac35504858d8914e102f9"
-uuid = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
-version = "0.9.4"
-
-[[deps.IOCapture]]
-deps = ["Logging", "Random"]
-git-tree-sha1 = "f7be53659ab06ddc986428d3a9dcc95f6fa6705a"
-uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
-version = "0.2.2"
-
 [[deps.ImageAxes]]
 deps = ["AxisArrays", "ImageBase", "ImageCore", "Reexport", "SimpleTraits"]
 git-tree-sha1 = "c54b581a83008dc7f292e205f4c409ab5caa0f04"
@@ -1396,11 +1454,6 @@ git-tree-sha1 = "5d494bc6e85c4c9b626ee0cab05daa4085486ab1"
 uuid = "5ced341a-0733-55b8-9ab6-a4889d929147"
 version = "1.9.3+0"
 
-[[deps.MIMEs]]
-git-tree-sha1 = "65f28ad4b594aebe22157d6fac869786a255b7eb"
-uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
-version = "0.1.4"
-
 [[deps.MKL_jll]]
 deps = ["Artifacts", "IntelOpenMP_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "Pkg"]
 git-tree-sha1 = "2ce8695e1e699b68702c03402672a69f54b8aca9"
@@ -1694,12 +1747,6 @@ deps = ["ColorSchemes", "Colors", "Dates", "Printf", "Random", "Reexport", "Snoo
 git-tree-sha1 = "c95373e73290cf50a8a22c3375e4625ded5c5280"
 uuid = "995b91a9-d308-5afd-9ec6-746e21dbc043"
 version = "1.3.4"
-
-[[deps.PlutoUI]]
-deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
-git-tree-sha1 = "5bb5129fdd62a2bbbe17c2756932259acf467386"
-uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-version = "0.7.50"
 
 [[deps.PolygonOps]]
 git-tree-sha1 = "77b3d3605fc1cd0b42d95eba87dfcd2bf67d5ff6"
@@ -2099,11 +2146,6 @@ git-tree-sha1 = "94f38103c984f89cf77c402f2a68dbd870f8165f"
 uuid = "3bb67fe8-82b1-5028-8e26-92a6c54297fa"
 version = "0.9.11"
 
-[[deps.Tricks]]
-git-tree-sha1 = "6bac775f2d42a611cdfcd1fb217ee719630c4175"
-uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
-version = "0.1.6"
-
 [[deps.TriplotBase]]
 git-tree-sha1 = "4d4ed7f294cda19382ff7de4c137d24d16adc89b"
 uuid = "981d1d27-644d-49a2-9326-4793e63143c3"
@@ -2119,11 +2161,6 @@ version = "0.9.5"
 git-tree-sha1 = "3c712976c47707ff893cf6ba4354aa14db1d8938"
 uuid = "9d95972d-f1c8-5527-a6e0-b4b365fa01f6"
 version = "1.3.0"
-
-[[deps.URIs]]
-git-tree-sha1 = "074f993b0ca030848b897beff716d93aca60f06a"
-uuid = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
-version = "1.4.2"
 
 [[deps.UUIDs]]
 deps = ["Random", "SHA"]
@@ -2320,45 +2357,50 @@ version = "3.5.0+0"
 """
 
 # ╔═╡ Cell order:
-# ╟─a4335163-e5b0-4d1e-b9ee-3ba51528e02f
-# ╟─952350cb-f73d-4ccc-a6ac-9ef38977e152
 # ╠═057bf48c-bcde-11ed-0a9c-b506336f7e4e
 # ╠═7719327d-c451-42ad-9355-a4f2fb0f671d
-# ╠═d75016d9-bdb6-4456-99e7-9acfd0b7ca38
-# ╟─a23bc30d-6428-42c0-99aa-33cb8e30512f
-# ╠═ab7bed9d-0814-490e-8885-95a224feec70
-# ╠═2d2536d6-137e-4b77-a530-4571dfc7e779
-# ╠═d045d631-4aaf-4a5f-aaf7-15f3ebd878d7
-# ╠═e75b11d3-b798-4281-a09c-608495c42c6c
-# ╠═cbc0659b-3b23-4076-abbf-0787d0873281
 # ╠═a81a731a-0ab9-459e-b4c6-78caef61652a
-# ╟─657b0773-a33f-4df3-90f1-7a8a432a9554
-# ╟─854b1e5f-0826-4a8a-bd2a-df91777c5283
+# ╠═ab7bed9d-0814-490e-8885-95a224feec70
+# ╠═75dcbe94-0a6e-415f-9c04-eb75f1439c2f
 # ╠═cbd9a443-59c2-4662-a3c6-f6a9d463bfef
+# ╠═42955119-6fc2-49cf-8423-15ae6fe6ebeb
+# ╠═fb2978e1-3967-4f53-ab8c-0dc072b8478e
+# ╠═9154953f-13b4-4328-9136-c6ccfed506af
 # ╠═1ecd3ae3-b316-4c35-908d-357e6f7baeb0
-# ╟─da581b79-90bf-4564-96f2-b51ae88981a1
-# ╠═800ffab4-3541-4627-b04d-a6817a9e4c0d
-# ╠═870d4d85-6b10-4b68-a0a1-7299387c49a9
-# ╠═b7772ced-53b9-40f3-9835-b06bdcfdf540
-# ╟─1e96f1ef-cc06-454f-b739-da3b02505f84
-# ╟─41350cb9-0967-4e69-abfc-ceb9b463b3c2
-# ╠═e162bf1b-e646-4efd-a094-945ed6d62a9e
-# ╟─20c6c789-7ee2-4828-92a5-1c87041b746f
-# ╟─16a0479b-b65f-476a-be6f-89e539e56f1c
-# ╟─076f4f76-d417-4925-85cb-fd0e3b8219a9
-# ╟─db0b306f-8411-4f7c-a225-dd3f1d6d4f2c
-# ╠═8a7d8948-a026-4162-befb-aa0ef32f1430
-# ╠═b3abc1eb-c69a-491b-9f43-0a69dd2285e6
-# ╟─08f69900-8b41-4b55-8653-0e94ac1522ed
-# ╟─f27ec5b3-530b-416e-8faf-c55c346344cb
-# ╠═e89c6cb5-65ac-4522-8bef-c98267c6419b
-# ╠═0fa83b99-0956-41fc-811d-42f071cd5368
-# ╟─e02deee7-59a9-4e7f-b76f-e50d3a1188e0
+# ╠═2d2536d6-137e-4b77-a530-4571dfc7e779
 # ╠═7a74e3e5-c8e6-4a1d-9719-d4b697328a03
-# ╟─232539e4-6ade-42fa-b6df-fe490e55a84d
+# ╠═870d4d85-6b10-4b68-a0a1-7299387c49a9
+# ╠═2e69b98d-6b33-4d97-8cf5-19afc68a9dee
 # ╠═1027dde7-4033-40a3-98b9-1cdc21de8326
-# ╠═aab2cc78-84e7-4231-983e-c164a5e2ed82
+# ╠═7d26dc6f-52f9-448b-84ab-3521b40f14d7
+# ╠═d045d631-4aaf-4a5f-aaf7-15f3ebd878d7
+# ╠═800ffab4-3541-4627-b04d-a6817a9e4c0d
+# ╠═b7772ced-53b9-40f3-9835-b06bdcfdf540
+# ╠═e162bf1b-e646-4efd-a094-945ed6d62a9e
+# ╠═e75b11d3-b798-4281-a09c-608495c42c6c
+# ╠═16a0479b-b65f-476a-be6f-89e539e56f1c
+# ╠═8a7d8948-a026-4162-befb-aa0ef32f1430
+# ╠═2d8e2259-9d16-4deb-9c53-b96384913277
+# ╠═7c6fe9c2-54a1-443b-be1e-03f4928c3b8a
+# ╠═b3abc1eb-c69a-491b-9f43-0a69dd2285e6
+# ╠═77e8e379-fcec-4302-8190-065048986975
+# ╠═9733a638-ebed-49ca-b539-889b61cdbff6
+# ╠═eff968a5-b880-4e2a-92f6-d7cda5009c80
+# ╠═e353093a-e20b-434b-bf5f-d2ced821c3c3
+# ╠═9801cb69-5d7d-4d3d-bf6e-1f3cecea19cd
 # ╠═e5d287a7-e02c-4beb-b4e4-198b58b02e0e
+# ╠═0fa83b99-0956-41fc-811d-42f071cd5368
+# ╠═e89c6cb5-65ac-4522-8bef-c98267c6419b
+# ╠═b87a69f7-8720-48bb-91e6-10c30f3b0923
+# ╠═3817fa26-4841-42b2-bc4b-2a07c915852b
+# ╠═c97f3161-2107-445b-be20-4d7971b7e568
 # ╠═aefef250-4476-4ad2-8d9f-85eace2d9fd3
+# ╠═7d0e138d-c3b8-4775-b26a-cddae594c48d
+# ╠═ad47e6a7-b92b-420d-a584-84ca4219b949
+# ╠═4322b97e-2649-4347-a780-c979d80c0b03
+# ╠═8024880e-c139-4812-b452-cbd06d2f498e
+# ╠═9fd98f26-6ce5-43dd-a7bf-8a2418f0e573
+# ╠═e5883e68-7b99-4f4f-be2e-ec5616c0f0ef
+# ╠═d8901f82-a018-4e67-a541-90699ccecfb1
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
