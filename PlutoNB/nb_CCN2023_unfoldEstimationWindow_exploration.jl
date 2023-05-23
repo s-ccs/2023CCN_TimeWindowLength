@@ -36,7 +36,7 @@ dat,evts = UnfoldSim.predef_eeg(rng;
 		sfreq = sfreq,
 		#p1 = (p100(;sfreq=sfreq), @formula(0~1+condition),[5,0],Dict()),
 		n1 = (n170(;sfreq=sfreq), @formula(0~1+condition),[5,0],Dict()),
-		p3 = (p300(;sfreq=sfreq), @formula(0~1+continuous),[5,0],Dict()),
+		p3 = (-p300(;sfreq=sfreq), @formula(0~1+continuous),[5,0],Dict()),
 		n_repeats=20,noise=noise)
 		return dat,evts
 	end
@@ -90,7 +90,7 @@ dat_gt,evts_gt = UnfoldSim.predef_eeg(;
 		#p1 = (p100(;sfreq=sfreq), @formula(0~1),[5],Dict()),
 		sfreq = sfreq,
 		n1 = (n170(;sfreq=sfreq), @formula(0~1),[5],Dict()),
-		p3 = (p300(;sfreq=sfreq), @formula(0~1),[5],Dict()),
+		p3 = (-p300(;sfreq=sfreq), @formula(0~1),[5],Dict()),
 		n_repeats=1,noiselevel=0, return_epoched=true);
 	#dat_gt = dat_gt.*-1
 time_gt = range(0,length = length(dat_gt[:,1]),step=1/sfreq)
@@ -388,6 +388,28 @@ out_test
 #	unique(res.tWin)
 #end
 
+# ╔═╡ e353093a-e20b-434b-bf5f-d2ced821c3c3
+let
+	res = deepcopy(res)
+	res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res.basisname,"("=>"",")"=>""),',')])
+	mintW = res.time[res.tWin .== minimum(unique(res.tWin))]
+	
+	dat_one	=@subset(res,:basisname .== bNames[1])
+	_, gt, est = compare_window(dat_one.time,dat_one.estimate,time_gt,dat_gt, mintW;type="estim");
+
+	#t = dat_one.time
+	#short_gt = dat_gt[1:length(t[t .>= 0]),1]
+	#start_gt = time_gt[1]
+	#end_gt = time_gt[end]
+	#x = append!(zeros(sum(t[1].<start_gt)), short_gt)
+	#padded_gt = collect((collect(x))[1])
+	
+	lines(est)
+	lines!(gt)
+	current_figure()
+	mse = mean((gt .- est).^2)
+end
+
 # ╔═╡ 9801cb69-5d7d-4d3d-bf6e-1f3cecea19cd
 df_gt
 
@@ -487,28 +509,6 @@ typeof(h)
 # ╔═╡ 4322b97e-2649-4347-a780-c979d80c0b03
 	bNames = unique(res.basisname)
 
-
-# ╔═╡ e353093a-e20b-434b-bf5f-d2ced821c3c3
-let
-	res = deepcopy(res)
-	res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res.basisname,"("=>"",")"=>""),',')])
-	mintW = res.time[res.tWin .== minimum(unique(res.tWin))]
-	
-	dat_one	=@subset(res,:basisname .== bNames[1])
-	_, gt, est = compare_window(dat_one.time,dat_one.estimate,time_gt,dat_gt, mintW;type="estim");
-
-	#t = dat_one.time
-	#short_gt = dat_gt[1:length(t[t .>= 0]),1]
-	#start_gt = time_gt[1]
-	#end_gt = time_gt[end]
-	#x = append!(zeros(sum(t[1].<start_gt)), short_gt)
-	#padded_gt = collect((collect(x))[1])
-	
-	lines(est)
-	lines!(gt)
-	current_figure()
-	mse = mean((gt .- est).^2)
-end
 
 # ╔═╡ 8024880e-c139-4812-b452-cbd06d2f498e
 time_gt[time_gt .> 0.199]
