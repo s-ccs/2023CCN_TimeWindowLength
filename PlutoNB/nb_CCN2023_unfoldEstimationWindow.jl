@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.22
+# v0.19.26
 
 using Markdown
 using InteractiveUtils
@@ -471,6 +471,110 @@ let
 	current_figure()
 end
 
+# ╔═╡ 575da16d-f195-4cc5-9e26-6270cb807ec9
+let 
+	lin_width = 7
+	saveFig = false
+	# Full figure for poster
+
+	fullFig = Figure(resolution = (2990, 1663.748), fontsize = 43)
+
+	## MSE Plot
+	out_test = reduce(vcat,out)
+	@eachrow! out_test begin
+		@newcol :indicator::Vector{String}
+		:indicator = :tWin < 3 ? "1" : "2"
+	end
+	out_test.tWin[out_test.tWin .== 3] .= 0.7
+
+	out_long = @subset(out_test,:basisname .== "(-0.1, 3)")
+	out_long.tWin[out_long.tWin .== 0.7] .= 0.75
+
+	p_gt = data(out_test) * mapping(:tWin, :mse_gt, color=:basisname) * visual(BoxPlot, width=0.05) + data(out_long) * mapping(:tWin, :mse_estim) * visual(BoxPlot, width=0.05)
+	
+	values = reverse(unique(out_test.tWin))
+	
+	labels = string.(values)
+	labels[end] = "3.0"
+	
+	draw!(fullFig[1:2,2], p_gt, axis=(;ylabel ="Mean Squared Error [a.u.]", xlabel = "Window Length [s]", xticks = (values, labels), yticks = 0:2:14,limits=(nothing, (0, 16))),facet=(;linkxaxes=:false))
+
+	markersize = Theme(markersize=30)
+	update_theme!(markersize)
+	
+	###################################
+	
+	## Short estimation windows
+
+	h_t_short = data(@subset(res,:basisname .!= "(-0.1, 3)")) * mapping(:time,:estimate,color=:tWin,group=(:tWin,:coefname)=>(x,y)->string(x)*y)
+
+	
+	untWin_short = unique(res_gt.tWin)
+	segDF_short = 	DataFrame(
+		:x=>hcat(repeat([-0.1],length(untWin_short)),untWin_short)'[:],
+		:y=>repeat(reverse(1:length(untWin_short)),inner=2))
+	segDF_short.tWin .= 0.
+	segDF_short.tWin[1:2:end] .= segDF_short.x[2:2:end]
+	segDF_short.tWin[2:2:end] .= segDF_short.x[2:2:end]
+	
+	segDF_short.y = segDF_short.y .* 0.2 .+ 7.5
+	
+	h_l_short = data(@subset(segDF_short,:tWin .!=3.0))* mapping(:x,:y,color=:tWin,group=:tWin=>x->string.(x))
+	
+	h_gt_short = data(df_gt) * mapping(:time,:estimate,group=(:tWin,:coefname)=>(x,y)->string(x)*y)*visual(Lines,linewidth=lin_width,color=Colors.Gray(0.6))
+
+	
+	h1_short = h_gt_short + visual(Lines,linewidth=lin_width,colormap=get(ColorSchemes.Reds,0.3:0.01:1)) * (h_l_short + h_t_short) |> x->draw!(fullFig[1,1],x,axis=(;ylabel="estimate [a.u.]"))
+	
+	h1_short = hlines!(current_axis(),[0],color=Colors.Gray(0.8))
+	h2_short = vlines!(current_axis(),[0],color=Colors.Gray(0.8))
+	translate!(h1_short, 0, 0, -1)
+	translate!(h2_short, 0, 0, -1)
+
+	##########################################
+	
+	## Long estimation windows
+	tWinLong = [(-0.1,x) for x in [3,2.5,2,1.5,1,0.5]]
+	#tWinLong = reverse(tWinLong)
+	d = calc_time_models(evts,dat,tWinLong,sfreq)
+	d.tWin = basisToWin(d.basisname)
+	
+	#@show first(d, 5)
+	
+	untWin = unique(d.tWin)
+	segDF = 	DataFrame(
+		:x=>hcat(repeat([-0.1],length(untWin)),untWin)'[:],
+		:y=>repeat(reverse(1:length(untWin)),inner=2))
+	segDF.tWin .= 0.
+	segDF.tWin[1:2:end] .= segDF.x[2:2:end]
+	segDF.tWin[2:2:end] .= segDF.x[2:2:end]
+	
+	segDF.y = segDF.y .* 0.2 .+ 6
+
+	h_l = data(segDF)* mapping(:x,:y,color=:tWin,group=:tWin=>nonnumeric)
+	
+	t = d.time
+	start_gt = time_gt[1]
+	end_gt = time_gt[end]
+
+	visual(Lines,linewidth=lin_width,colormap=reverse(get(ColorSchemes.Blues,0.3:0.01:1.2))) * (h_l + data(d)*mapping(:time,:estimate,color=:tWin,group=:tWin=>nonnumeric))|>x->draw!(fullFig[2,1],x,axis=(;xlabel="time [s]",ylabel="estimate [a.u.]"))
+	lines!(time_gt,dat_gt[:,1],color=Colors.Gray(0.2),linewidth=lin_width)
+
+	h1 = hlines!(current_axis(),[0],color=Colors.Gray(0.8))
+	h2 = vlines!(current_axis(),[0],color=Colors.Gray(0.8))
+	translate!(h1, 0, 0, -1)
+	translate!(h2, 0, 0, -1)
+
+	## Show Fig
+	
+	if saveFig
+	save("/store/users/skukies/Projects/2023CCN_TimeWindowLength/Plots/ThreePanelFigure.eps", fullFig)
+	save("/store/users/skukies/Projects/2023CCN_TimeWindowLength/Plots/ThreePanelFigure.pdf", fullFig)
+	save("/store/users/skukies/Projects/2023CCN_TimeWindowLength/Plots/ThreePanelFigure.png", fullFig)
+	end
+	fullFig
+end
+
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
@@ -509,7 +613,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.3"
 manifest_format = "2.0"
-project_hash = "237d762c5759b6d7e643e1c5077ab794a5046208"
+project_hash = "71ccb2b252c73f342fca13344501f15892f322a1"
 
 [[deps.AMD]]
 deps = ["Libdl", "LinearAlgebra", "SparseArrays", "Test"]
@@ -2360,5 +2464,6 @@ version = "3.5.0+0"
 # ╠═aab2cc78-84e7-4231-983e-c164a5e2ed82
 # ╠═e5d287a7-e02c-4beb-b4e4-198b58b02e0e
 # ╠═aefef250-4476-4ad2-8d9f-85eace2d9fd3
+# ╠═575da16d-f195-4cc5-9e26-6270cb807ec9
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

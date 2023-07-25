@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.22
+# v0.19.26
 
 using Markdown
 using InteractiveUtils
@@ -36,8 +36,8 @@ dat,evts = UnfoldSim.predef_eeg(rng;
 		sfreq = sfreq,
 		#p1 = (p100(;sfreq=sfreq), @formula(0~1+condition),[5,0],Dict()),
 		n1 = (n170(;sfreq=sfreq), @formula(0~1+condition),[5,0],Dict()),
-		p3 = (-p300(;sfreq=sfreq), @formula(0~1+continuous),[5,0],Dict()),
-		n_repeats=20,noise=noise)
+		p3 = (p300(;sfreq=sfreq), @formula(0~1+continuous),[5,0],Dict()),
+		n_repeats=20,noise=noise) # The original n_repeats was 20
 		return dat,evts
 	end
 end
@@ -90,7 +90,7 @@ dat_gt,evts_gt = UnfoldSim.predef_eeg(;
 		#p1 = (p100(;sfreq=sfreq), @formula(0~1),[5],Dict()),
 		sfreq = sfreq,
 		n1 = (n170(;sfreq=sfreq), @formula(0~1),[5],Dict()),
-		p3 = (-p300(;sfreq=sfreq), @formula(0~1),[5],Dict()),
+		p3 = (p300(;sfreq=sfreq), @formula(0~1),[5],Dict()),
 		n_repeats=1,noiselevel=0, return_epoched=true);
 	#dat_gt = dat_gt.*-1
 time_gt = range(0,length = length(dat_gt[:,1]),step=1/sfreq)
@@ -388,28 +388,6 @@ out_test
 #	unique(res.tWin)
 #end
 
-# ╔═╡ e353093a-e20b-434b-bf5f-d2ced821c3c3
-let
-	res = deepcopy(res)
-	res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res.basisname,"("=>"",")"=>""),',')])
-	mintW = res.time[res.tWin .== minimum(unique(res.tWin))]
-	
-	dat_one	=@subset(res,:basisname .== bNames[1])
-	_, gt, est = compare_window(dat_one.time,dat_one.estimate,time_gt,dat_gt, mintW;type="estim");
-
-	#t = dat_one.time
-	#short_gt = dat_gt[1:length(t[t .>= 0]),1]
-	#start_gt = time_gt[1]
-	#end_gt = time_gt[end]
-	#x = append!(zeros(sum(t[1].<start_gt)), short_gt)
-	#padded_gt = collect((collect(x))[1])
-	
-	lines(est)
-	lines!(gt)
-	current_figure()
-	mse = mean((gt .- est).^2)
-end
-
 # ╔═╡ 9801cb69-5d7d-4d3d-bf6e-1f3cecea19cd
 df_gt
 
@@ -510,6 +488,28 @@ typeof(h)
 	bNames = unique(res.basisname)
 
 
+# ╔═╡ e353093a-e20b-434b-bf5f-d2ced821c3c3
+let
+	res = deepcopy(res)
+	res.tWin .= parse.(Float64,[s[2] for s in split.(replace.(res.basisname,"("=>"",")"=>""),',')])
+	mintW = res.time[res.tWin .== minimum(unique(res.tWin))]
+	
+	dat_one	=@subset(res,:basisname .== bNames[1])
+	_, gt, est = compare_window(dat_one.time,dat_one.estimate,time_gt,dat_gt, mintW;type="estim");
+
+	#t = dat_one.time
+	#short_gt = dat_gt[1:length(t[t .>= 0]),1]
+	#start_gt = time_gt[1]
+	#end_gt = time_gt[end]
+	#x = append!(zeros(sum(t[1].<start_gt)), short_gt)
+	#padded_gt = collect((collect(x))[1])
+	
+	lines(est)
+	lines!(gt)
+	current_figure()
+	mse = mean((gt .- est).^2)
+end
+
 # ╔═╡ 8024880e-c139-4812-b452-cbd06d2f498e
 time_gt[time_gt .> 0.199]
 
@@ -536,24 +536,6 @@ let
 	end
 	out
 end
-
-# ╔═╡ d8901f82-a018-4e67-a541-90699ccecfb1
-# ╠═╡ disabled = true
-#=╠═╡
-let
-
-	m = fit(UnfoldModel,Dict(Any=>(@formula(0~1),range(0,0.5,length=size(dat_gt,1)))),evts_gt,dat_gt);
-	@show coef(m)
-	#res_gt = coeftable(m)
-		res_gt.coefname .= "GroundTruth"
-	res_gt2 = vcat(res,res_gt)
-	for b = unique(res.basisname)
-		res_gt.basisname .=b
-		res_gt2 = vcat(res_gt2,res_gt)
-	end
-	res_gt2 
-end
-  ╠═╡ =#
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -2401,6 +2383,5 @@ version = "3.5.0+0"
 # ╠═8024880e-c139-4812-b452-cbd06d2f498e
 # ╠═9fd98f26-6ce5-43dd-a7bf-8a2418f0e573
 # ╠═e5883e68-7b99-4f4f-be2e-ec5616c0f0ef
-# ╠═d8901f82-a018-4e67-a541-90699ccecfb1
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
